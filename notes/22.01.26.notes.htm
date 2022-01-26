@@ -1,0 +1,275 @@
+<html>
+<head>
+  <title>INFO 4310 - Sept-07b</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  
+  <style>
+      .gridlines line {
+        stroke: #bbb;
+      }
+
+      .gridlines .domain {
+        stroke: none;
+      }
+      
+      .state {
+        fill: lightgrey;
+      }
+      .outline {
+        stroke: black;
+        stroke-width: 1px;
+        fill: none;
+      }
+      .graticule {
+        fill: none;
+        stroke: #777;
+      }
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for January 26</h3>
+    <p>
+      Today we will go through some d3 examples from INFO3300 as a quick review. This class is primarily intended for those who need a quick d3 refresher, and should be considered optional.
+    </p>
+    <p>
+      Make sure to complete the introductory survey linked off of the main course schedule.
+    </p>
+    
+    
+    
+    <h5>HTML for today:</h5>
+      <svg id="scatterplot" height="400" width="600" style="margin-top:50px" >
+        <text id="label" x="590" y="5"  text-anchor="end" alignment-baseline="hanging"></text>
+        
+        
+      </svg>
+      
+      
+      <svg id="choropleth" height="400" width="600" style="background: #445; margin-top:50px" >
+
+      </svg>
+      
+      <svg id="graph" height="800" width="800" style="background: #sff; margin-top:50px" >
+        
+      </svg>
+    
+    
+      <div id="barContainer">
+        
+      </div>
+    
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+    </pre>
+    <pre>
+      <code id="display2" class="hljs javascript">
+      </code>
+    </pre>
+    <pre>
+      <code id="display3" class="hljs javascript">
+      </code>
+    </pre>
+    
+    
+    
+    
+    
+    <script id="notes1">
+  
+    // 0. Let's make a fancy scatterplot
+    const scatter = d3.select("svg#scatterplot");
+    
+    const width = scatter.attr("width");
+    const height = scatter.attr("height");
+    const margin = {top: 10, right: 10, bottom: 50, left: 50};
+    
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+
+    // We use <g> tags to make sure the points sit above the axis labels
+    let annotations = scatter.append("g").attr("id","annotations");
+                    // No translate here since our annotations may be outside of the chart area
+                    
+    let chartArea = scatter.append("g").attr("id","points")
+                    .attr("transform","translate("+margin.left+","+margin.top+")");
+
+    // "../datasets/blockbusters.csv"
+    // data.forEach( d => {
+    //   d['worldwide_gross'] = Number( d['worldwide_gross'].replace(/,/g, "").replace(/\$/g,"") );
+    // });
+
+    
+    // < NEW CODE HERE >
+    
+    
+        
+          
+    
+    // < NEW CODE HERE >
+    
+
+    // HELPER FUNCTION
+    //  lighten a color a little bit using d3 color functions
+    function lighten(color) {
+        
+        let hclColor = d3.hcl(color);
+        let luma = Math.min(130, hclColor.l + 30);
+        return d3.rgb( d3.hcl( hclColor.h, hclColor.c, luma ) );
+      
+    }
+    
+    </script>
+    
+    <script id="notes2">
+    
+    const mapsvg = d3.select("#choropleth");
+    const mapWidth = mapsvg.attr("width");
+    const mapHeight = mapsvg.attr("height");
+    const mapMargin = { top: 20, right: 20, bottom: 20, left:20};
+    const mapAreaWidth = mapWidth - mapMargin.left - mapMargin.right;
+    const mapAreaHeight = mapHeight - mapMargin.top - mapMargin.bottom;
+    const map = mapsvg.append("g")
+                    .attr("transform","translate("+mapMargin.left+","+mapMargin.top+")");
+    
+    // Async function to build the map
+    // const requestMap = async function() {
+    //   // Get 2021 survey data
+    //   var surveyData = await d3.csv("../datasets/state-survey-responses-fa21.csv", d3.autotype);
+    //   console.log(surveyData)
+    // 
+    //   // Generate the dictionary we will need to do coloring
+    //   let stateIdCounts = {}; // stateIdCounts[ stateId ] -> count
+    //   let stateIdNames = {}; // stateIdNames[ stateId ] -> name
+    // 
+    //   surveyData.forEach( row => {
+    //     stateIdCounts[ row.state_code ] = Number(row.total);
+    //     stateIdNames[ row.state_code ] = row.state_name;
+    //   });
+    //   console.log(stateIdCounts)
+    // 
+    //   // 1. Draw a map of US using topoJSON
+    //   const us = await d3.json("../datasets/us-smaller.json");
+    //   console.log(us);
+    // 
+    //      // Useful colors for later ["#fff","#d1e8ed","#adc2da","#8879b3","#762b80"]
+    // 
+    //      // < NEW CODE HERE >
+    // 
+    // 
+    // 
+    // 
+    // 
+    //      // < NEW CODE HERE >
+    // 
+    // 
+    // };
+    // requestMap();
+      
+    
+    </script>
+    
+    <script id="notes3">
+    
+    // Layer for drawing
+    const layer = d3.select("#graph").append("g");
+    const graphwidth = d3.select("#graph").attr("width");
+    const graphheight = d3.select("#graph").attr("height");
+    
+    // Text label for later
+    var label = layer.append("text").attr("id","label");
+    
+    const requestGraph = async () => {
+
+      // Load dataset of Karate club study 
+      const karate = await d3.json("../datasets/soc-karate-dense.json");
+      
+      console.log(karate);
+
+      // Get the nodes
+      var nodes = karate.nodes; // Nodes can be just plain objects
+                                // Loop through nodes to build edges
+      
+      // What about links? 
+      // See karate.edges... but d3 expects a *sparse edge list* while we have a *dense matrix*
+      
+      // This dataset has a *dense* edge matrix rather than a *sparse* edge list
+      // Dense matrices are 2d arrays -- each place in the matrix corresponds to an index in *nodes*
+      //  If there is a 1 there, then there is an edge -- e.g. if edge: matrix[source][target] = 1
+      //  Since the data are non-directed, the matrix is symmetrical across diagonal
+      // Sparse edge lists are 1d arrays containing only the edges that are present
+      //  They are more efficient structures for the kinds of things we need to do (but aren't always)
+      //  To make one, we need to find all of the "1" values in the dense matrix (remembering it's symmetrical)
+      var links = [];
+      
+      // Loop through one half of the matrix (because it's symmetrical)
+      let edgeMatrix = karate.edges;
+      for (let i=0; i<nodes.length; i++) {
+        for (let j=i; j<nodes.length; j++) {   // j=i lets us loop over the upper right triangle only
+          
+          // If an edge is present, use the index to look up that node's ID number
+          // Then make a sparse edge object and put it into our list of links
+          if (edgeMatrix[i][j] === 1) {
+            sourceID = nodes[i]['id'];
+            targetID = nodes[j]['id'];
+            link = { 'source': sourceID, 'target': targetID };
+            links.push(link);
+          }
+          
+        }
+      }
+      
+      console.log(" Nodes and links");
+      console.log(nodes);
+      console.log(links);
+      
+      // < NEW CODE HERE >
+  
+  
+  
+  
+  
+      // < NEW CODE HERE >
+
+
+
+    }
+    requestGraph();
+    
+    </script>
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      document.getElementById("display2").innerHTML = sanitize( document.getElementById("notes2").innerText);
+      document.getElementById("display3").innerHTML = sanitize( document.getElementById("notes3").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>
