@@ -1,0 +1,124 @@
+<html><head>
+<title>INFO 3300 - March 9</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.14.2/styles/default.min.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.14.2/highlight.min.js"></script>
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="https://d3js.org/topojson.v2.min.js"></script>
+  <style>
+
+  .neighborhood {
+    fill: #EEE;
+    stroke: white;
+    stroke-width: 2px;
+  }
+
+  </style>
+
+</head>
+<body>
+  <div class="container larger">
+    <p> A map of SF trees:</p>
+  <svg id="points" height="900" width="900" style="background: #fff; margin-top:50px" >
+
+  </svg>
+
+
+
+  <script id="notes1">
+
+  const svg = d3.select("#points");
+  const width = svg.attr("width");
+  const height = svg.attr("height");
+  const margin = { top: 20, right: 20, bottom: 20, left:20};
+  const mapWidth = width - margin.left - margin.right;
+  const mapHeight = height - margin.top - margin.bottom;
+  const map = svg.append("g")
+                  .attr("transform","translate("+margin.left+","+margin.top+")");
+
+  // Let's make a map of all of the municipal trees in San Francisco
+  // With any luck, we ought to be able to visualize the streets/blocks in the city, since trees line them
+  //   (this is really just an excuse to make a lot of dots)
+  
+  // Datasets for today:
+  //  "../datasets/SF-Neighborhoods.json"
+  //  "../datasets/Street_Tree_List_smaller.csv"
+
+
+  // 1. Make the visualization
+  //  (refer to 03/04 notes for more comments)
+  const requestData = async function() {
+    
+    const sf = await d3.json("./SF-Neighborhoods.json");
+    console.log(sf);
+    
+    // We find that the feature we want to visualize is the SFNeighborhoods property within objects
+    //  Always search .objects for different features to show in a topoJSON dataset
+    var neighborhoods = topojson.feature(sf, sf.objects.SFNeighborhoods);
+    
+    // We use Mercator projection instead of a "better" projection because it's more familiar
+    // It also leads to a flat line on the bottom of the city due to how the projection makes all
+    //  latitude lines flat (which allows rhumb line equivalency)
+    var projection = d3.geoMercator().fitSize([mapWidth, mapHeight], neighborhoods);
+    var path = d3.geoPath().projection(projection);
+    
+    // Draw neighborhoods
+    // Just as in our line generators, the scale is used by the generator to take complex data and
+    //  generate fancy paths
+    map.selectAll("path.neighborhood").data(neighborhoods.features)
+      .join("path")
+      .attr("class", "neighborhood")
+      .attr("d", path);
+      
+      
+    const trees = await d3.csv("./Street_Tree_List_smaller.csv");
+    
+    
+    // We need to figure out where to position the dots. Since we may have a lot of them, let's process
+    //  the data ahead of time and add to our dict
+    // (Main reason for doing this is that otherwise we would have to call projection() twice, once
+    //    for 'cx' and once for 'cy')
+    trees.forEach( d => {
+      
+      // Use the projection just like a scale to convert from lng/lat to pixels
+      d.Position = projection( [d.Longitude, d.Latitude] );
+      
+    });
+    
+    // Draw circles using the Positions we just made
+    map.selectAll("circle").data(trees)
+       .join("circle")
+       .attr("r", 1)
+       .attr("fill", "forestgreen")
+       .attr("opacity", 0.4)
+       .attr("cx", d => d.Position[0])
+       .attr("cy", d => d.Position[1]);
+    
+    
+    
+  }
+  requestData();
+  
+  
+  
+
+
+
+
+  </script>
+
+
+
+
+
+  
+
+  </div>
+</body>
+</html>

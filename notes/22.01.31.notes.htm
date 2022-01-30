@@ -1,0 +1,118 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>INFO 4310 - January 31</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Prompt for Jan. 31</h3>
+    <p>
+      Today we're going to look at how to deploy applications to the web so that others can view them. The goal here is not to create a production-ready system. While we'll incorporate some libraries that are highly performant, we won't be following the absolute best practices for industry use so that we can instead make things a bit easier to prototype.
+    </p>
+    <p>
+      Requirements: <a href="https://www.python.org/download/releases/3.0/">Python 3</a>  |  <a href="https://flask.palletsprojects.com/en/2.0.x/">Flask</a>  |  <a href="http://whitenoise.evans.io">WhiteNoise</a>  |  <a href="https://heroku.com">Heroku</a> account | <a href="https://github.com">GitHub</a> account (recommended) </br>
+      (you can use pip to install "flask" and "whitenoise")
+    </p>
+    <p>
+      A number of cloud "platform as a service" tools exist for hosting web-based projects efficiently. In short, they allow you to upload web server code to a cloud backend which then does the hard part of making them web-accessible. While today we will make use of <a href="https://heroku.com">Heroku</a>, there are many different providers. These include (in no particular order) <a href="https://azure.microsoft.com/en-us/">Microsoft Azure</a>, <a href="https://aws.amazon.com/websites/">AWS</a>, <a href="https://cloud.google.com/appengine/">Google App Engine</a>, and <a href="https://www.digitalocean.com/">Digital Ocean</a>. I encourage you to examine each and figure out which set of features and end-user agreement works best for you. For the purposes of this class, you should not need a paid account.
+    </p>
+    <p>
+        Our system will involve the following components:
+    </p>
+    <ul>
+      <li>A Flask app holding the main web application code</li>
+      <li>A "static" folder holding static web files (for most of your work)</li>
+      <li>requirements.txt telling Heroku what your project needs</li>
+      <li>A Procfile telling Heroku how to run your project</li>
+      <li>A Heroku app to hold all of the files and run the project</li>
+      <li>(optional) a repository to hold your code offsite</li>
+    </ul>
+    <p>
+      At the conclusion of the class, you'll be able to find the files we used <a href="https://github.com/jeffrz/info4310-sp2022/tree/master/demos/heroku">here</a>. You can access the Heroku site we created <a href="https://jmr395-info4310-demo.herokuapp.com/">here</a>.
+    </p>
+    
+    <p>Commands used in the lecture:</p>
+    <pre>
+
+      # Make a project directory
+      mkdir &lt;PROJECT NAME, e.g. jmr395-info4310-hw1&gt;
+      cd &lt;PROJECT NAME&gt;
+
+      # Initialize an empty git repository (make sure Git is installed)
+      git init
+
+      # Initial login to Heroku (only do once, make sure Heroku is installed)
+      heroku login
+      # optional: run "heroku autocomplete" and add the command it echoes to your .bashrc
+
+      # Make a new Heroku project
+      heroku create &lt;PROJECT NAME, e.g. jmr395-info4310-hw1&gt;
+
+      # See how Heroku added a new remote repository
+      git remote
+
+      # Make a Flask app (make sure Python 3, Flask, and WhiteNoise are installed)
+      #  Use a text editor of your choice. I use Atom, which can run from the command line
+      atom app.py
+      
+      # See the demo files for what we added to app.py
+
+      # At this point we also made a static directory and put some files in it for Whitenoise to serve
+
+      # Test Flask server to see if it works (command may just be python for your machine)
+      python3 app.py
+       
+      # Heroku needs a requirements file
+      atom requirements.txt
+
+      # It includes:
+      #   gunicorn - library that runs our code, must include
+      #   flask - imported in our .py
+      #   whitenoise - imported in our .py
+
+      # Heroku needs a Procfile telling it how to start the app
+      atom Procfile
+
+      # It includes
+      #   web: gunicorn app:app    - "Host a web site using gunicorn and running app.py
+
+      # Commit the changes to your local git repository
+      git status
+      git add app.py
+      git add requirements.txt
+      # etc. to add all changed/added files
+
+      # Now commit the changes
+      git commit -m "first commit"
+
+      # send all recent changes to the "master" branch the "heroku" remote repository
+      git push remote heroku master    
+
+      # Heroku will now install the libraries and boot up
+
+      # recommended command
+      heroku ps:scale web=1
+
+      # Open the Heroku site in your web browser
+      heroku open
+
+      # For ease, we also connected our local repository to Github
+      # go to Github, make a repo, copy the .git web address, push our local changes
+
+      git remote add github https: ...blah... .git
+      git push remote github master
+
+    </pre>
+    
+  </div>
+</body>
+</html>
