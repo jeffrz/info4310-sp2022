@@ -1,0 +1,375 @@
+<html>
+<head>
+  <title>INFO 4310 - Feb-07</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+  
+      .gridlines line {
+        stroke: #bbb;
+      }
+
+      .gridlines .domain {
+        stroke: none;
+      }
+          
+      #scatterplot {
+        float:left;
+      }
+      
+      #panel {
+        height:400px; 
+        width:400px; 
+        float:left; 
+        padding: 20 30 20 20;
+      }
+      
+      #panel h5 {
+        margin:0;
+        padding:0;
+      }
+      
+      #lasso {
+        stroke: black;
+        fill: steelblue;
+        fill-opacity: 0.1;
+      }
+  
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for February 7</h3>
+    <p>
+      Today we're going to go through some different patterns for selecting and manipulating views in d3.
+    </p>
+    <p>
+      We'll make use of JS destructuring in our function calls today, since it's so handy. See the <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring_assignment">reference doc</a>.
+    </p>
+    
+    
+    <h5>HTML for today:</h5>
+    
+      <svg id="scatterplot" height="400" width="600" style="float:left;" >
+        
+      </svg>
+      
+      <div id="panel">
+      </div>
+      
+      
+      
+      <svg id="graph" height="800" width="800" style="background: #sff; margin-top:50px" >
+        
+      </svg>
+    
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+    </pre>
+    <pre>
+      <code id="display2" class="hljs javascript">
+      </code>
+    </pre>
+    
+    
+    
+    
+    
+    <script id="notes1">
+  
+    const scatter = d3.select("svg#scatterplot");
+    const width = scatter.attr("width");
+    const height = scatter.attr("height");
+    const margin = {top: 15, right: 15, bottom: 40, left: 50};
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+    let annotations = scatter.append("g").attr("id","annotations");
+    let chartArea = scatter.append("g").attr("id","points")
+                    .attr("transform","translate("+margin.left+","+margin.top+")");    
+
+    const loadScatter = async function() {
+      
+      let data = await d3.csv("../datasets/blockbusters.csv", d3.autoType )
+      data.forEach( d => {
+        d['worldwide_gross'] = Number( d['worldwide_gross'].replace(/,/g, "").replace(/\$/g,"") );
+      });
+
+      const yearExtent = d3.extent(data, d => d['year']);
+      const yearScale = d3.scaleLinear().domain(yearExtent).range([0, chartWidth]);
+      const grossExtent = d3.extent(data, d => d['worldwide_gross']);
+      const grossScale = d3.scaleLog().domain(grossExtent).range([chartHeight, 0]);
+      const imdbExtent = d3.extent(data, d => d['imdb_rating']);
+      const imdbScale = d3.scaleLinear().domain(imdbExtent).range([3,8]);
+      const genreScale = d3.scaleOrdinal(d3.schemeCategory10);
+      let leftAxis = d3.axisLeft(grossScale)
+                       .tickFormat(d3.format("$.0s"));  // shorter scientific notation with a dollar sign in front
+      let leftGridlines = d3.axisLeft(grossScale)
+                            .tickSize(-chartWidth-10)
+                            .tickFormat("")
+      let bottomAxis = d3.axisBottom(yearScale)
+                         .tickFormat(d3.format("~f"));  // exact value without commas
+      let bottomGridlines = d3.axisBottom(yearScale)
+                              .tickSize(-chartHeight-10)
+                              .tickFormat("")
+      annotations.append("g")
+        .attr("class", "y axis")
+        .attr("transform",`translate(${margin.left-10},${margin.top})`)
+        .call(leftAxis)
+      annotations.append("g")
+        .attr("class", "y gridlines")
+        .attr("transform",`translate(${margin.left-10},${margin.top})`)
+        .call(leftGridlines);
+      annotations.append("g")
+        .attr("class", "x axis")
+        .attr("transform",`translate(${margin.left},${chartHeight+margin.top+10})`)
+        .call(bottomAxis);
+      annotations.append("g")
+        .attr("class", "x gridlines")
+        .attr("transform",`translate(${margin.left},${chartHeight+margin.top+10})`)
+        .call(bottomGridlines);
+        
+      
+      let circles = chartArea.selectAll("circle.point").data(data)
+                              .join(enter => enter.append("circle")
+                                                  .attr("class","point")
+                                                  .attr("opacity", 0.8)
+                                                )
+                              .attr("cx", d => yearScale(d['year']))
+                              .attr("cy", d => grossScale(d['worldwide_gross']+1))
+                              .attr("r", d => imdbScale(d['imdb_rating']))
+                              .attr("fill", d => genreScale(d['Main_Genre']) ) 
+                              .attr("label", d => d["title"])
+                              .attr("genre", d => d["Main_Genre"]);
+                
+        
+        // event is new as of d3 v6
+        circles.on("mouseover", function(event, d) {
+          
+          d3.select(this)
+            .transition().duration(200)
+            .attr("stroke","black")
+            .attr("stroke-width", 4)
+            .attr("fill", lighten( genreScale(d['Main_Genre']) )) ;
+        
+        });
+        
+        circles.on("mouseout", function(event, d) {
+        
+          d3.select(this)
+            .transition().duration(200)
+            .attr("stroke","")
+            .attr("stroke-width", 1)
+            .attr("fill", genreScale(d['Main_Genre']) );
+        
+        });
+          
+          
+        // Make a panel to provide more info to the user, reinforce what mouseover is doing  
+        let panelHeader = d3.select("#panel").append("h5");
+        let table = d3.select("#panel").append("table");
+        
+        function updatePanel(row) {
+          
+          
+          
+          
+          
+        }
+        
+        
+        
+        // Creating an interactive surface for better events
+        //  We add it to the annotations so it appears *underneath* the points.
+        // * Is this a good choice? *
+        let surface = annotations.append("g").raise()
+                             .style("pointer-events","all") // What allows it to capture mouse evt
+                             .attr("transform","translate("+margin.left+","+margin.top+")") 
+        // The "pixels" for the mouse events to hit -- don't need to be filled                                       
+        surface.append("rect")
+                  .attr("x1",0)
+                  .attr("y1",0)
+                  .attr("width",chartWidth)
+                  .attr("height",chartHeight)
+                  .attr("fill","none");
+        
+        // Add a 2d brush to the chart area - allows for rectangular selection
+        // Use *either* brush or lasso. They aren't friends
+        
+        
+        
+        // Create a simple lasso tool for selection
+        // Use *either* brush or lasso. They aren't friends
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        // Added in this function just to show some status
+        function updatePanelHeader( numPoints ) {
+            if (numPoints > 0) {
+              panelHeader.text("Selected: "+numPoints+" points");
+            }
+            else {
+              panelHeader.text("");
+            }
+        }
+        
+        // Left to the reader - how to add logic to the mouseovers so they don't trigger if lasso-ing
+        
+        
+
+    }
+    loadScatter();
+    
+
+    // HELPER FUNCTION
+    //  lighten a color a little bit using d3 color functions
+    function lighten(color) {
+        
+        let hclColor = d3.hcl(color);
+        let luma = Math.min(130, hclColor.l + 30);
+        return d3.rgb( d3.hcl( hclColor.h, hclColor.c, luma ) );
+      
+    }
+  
+    
+    </script>
+    
+    <script id="notes2">
+    
+    // See bottom where we add pan/zoom
+    
+    const layer = d3.select("#graph").append("g");
+    const graphwidth = d3.select("#graph").attr("width");
+    const graphheight = d3.select("#graph").attr("height");
+    
+    const requestGraph = async () => {
+
+      //Assemble data structures for a graph
+      const nd = await d3.json("../datasets/414.nodes.json"); 
+      var nodes = []
+      nd.forEach( e => { nodes.push({'id':e}); } );
+      var links = await d3.json("../datasets/414.edges.json");
+      
+      console.log(nodes)
+      console.log(links)
+      var sim = d3.forceSimulation()
+                  .nodes(nodes)
+                  .force("links", d3.forceLink()
+                                         .links(links)
+                                         .id( d => d.id ) )
+                  .force("repulse", d3.forceManyBody().strength(-200) )
+                  .force("center", d3.forceCenter(graphwidth/2.0, graphheight/2.0))
+                  .on("tick", render);
+                  
+      // Clever trick for pre-computing the graph layout until it cools off            
+      for (var i = 0, n = Math.ceil(Math.log(sim.alphaMin()) / Math.log(1 - sim.alphaDecay())); i < n; ++i) {
+        sim.tick();
+      }
+      
+      var lines;
+      var circles;
+      function render() {
+        lines = layer.selectAll("line.link").data(links)
+                     .join( enter => { enter.append("line")
+                                            .attr("class","link")
+                                            .attr("stroke", "#333")
+                         }
+                       )
+                     .attr("x1", d => d.source.x).attr("x2", d => d.target.x)
+                     .attr("y1", d => d.source.y).attr("y2", d => d.target.y)
+        circles = layer.selectAll("circle.node").data(nodes)
+                       .join( enter => { enter.append("circle")
+                                              .attr("class","node")
+                                              .attr("fill","steelblue")
+                                              .attr("stroke", "#333")
+                                              .attr("r", 6)
+                                              .attr("cx", 0)
+                                              .attr("cy", 0)
+                                              .call( d3.drag().on("start",dragstart)
+                                                              .on("drag",dragging)
+                                                              .on("end",dragend) ) 
+                                        } 
+                            )
+                        .attr("transform", d => "translate("+d.x+","+d.y+")");
+      }
+
+      render();  // Call render once to make sure we draw circles even if simulation stops
+
+      // Use destructuring again
+      function dragstart({active,x,y}, d) {
+        // Start dragging
+        if (!active) {
+            sim.alphaTarget(0.08).restart();
+        }
+        d.fx = x;
+        d.fy = y;
+        
+      }
+      function dragging({x,y}, d) {
+        // Continue dragging
+        d.fx = x;
+        d.fy = y;
+
+      }
+      function dragend({active,x,y}, d) {
+        // End dragging a circle, make sure the simulation has enough alpha left to fix things afterwards
+        
+        // Start dragging
+        if (!active) {
+            sim.alphaTarget(0);
+        }
+        
+        d.fx = null;
+        d.fy = null;
+
+      }
+      
+      // Make the graph zoomable
+      // d3.zoom works much like d3.brush and d3.drag
+      
+      
+      
+    }
+    requestGraph();
+    
+    
+    </script>
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      document.getElementById("display2").innerHTML = sanitize( document.getElementById("notes2").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>
