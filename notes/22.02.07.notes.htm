@@ -60,18 +60,15 @@
     
     <h5>HTML for today:</h5>
     
+    <div style="width: 1100px; height: 400px;">
       <svg id="scatterplot" height="400" width="600" style="float:left;" >
         
       </svg>
       
       <div id="panel">
       </div>
+    </div>
       
-      
-      
-      <svg id="graph" height="800" width="800" style="background: #sff; margin-top:50px" >
-        
-      </svg>
     
     <h5>Code for today:</h5>
     <pre>
@@ -164,6 +161,8 @@
             .attr("stroke-width", 4)
             .attr("fill", lighten( genreScale(d['Main_Genre']) )) ;
         
+          updatePanel(d);
+        
         });
         
         circles.on("mouseout", function(event, d) {
@@ -174,6 +173,8 @@
             .attr("stroke-width", 1)
             .attr("fill", genreScale(d['Main_Genre']) );
         
+          updatePanel( {} );
+        
         });
           
           
@@ -183,11 +184,33 @@
         
         function updatePanel(row) {
           
+          // // Original version
+          // let title = row.title;
+          // panelHeader.text(title);
+          // let kvPairs = Object.entries(row);
           
+          // Let's get rid of the "title" key so our table is cleaner
+          let rowCopy = Object.assign({},row); // does a "shallow copy" of row so we can delete title
+          let title = rowCopy.title;
+          delete rowCopy.title;
+          panelHeader.text(title);
           
+          let kvPairs = Object.entries(rowCopy);
+          console.log(kvPairs);
           
+          let rows = table.selectAll("tr").data(kvPairs)
+                          .join( enter => enter.append("tr"),
+                                 update => update.selectAll("td").remove(), 
+                                 exit => exit.remove() );
+          
+          rows.append("td").append("strong").text( d => d[0] );
+          rows.append("td").text( d => d[1] );
+          
+          // NOTE: this will work even when we give it a {} in mouseout
+          //  That's because the title stuff doesn't throw exceptions and kvPairs will just be []
           
         }
+        
         
         
         
@@ -205,20 +228,107 @@
                   .attr("height",chartHeight)
                   .attr("fill","none");
         
+        
         // Add a 2d brush to the chart area - allows for rectangular selection
         // Use *either* brush or lasso. They aren't friends
         
-        
+        // surface.call( d3.brush().on("start", brushStart).on("brush", brushed) );
+        // 
+        // function brushStart(event) {
+        //   circles.attr("fill", d => genreScale(d['Main_Genre']) );
+        // }
+        // // Notice the function call here -- we are using *destructuring*
+        // //  If you know the format of your input, you can directly extract variables from it
+        // //  So instead of event.selection[0][0] we can now just say x0
+        // function brushed( { selection: [[x0, y0],[x1, y1]] } ) {
+        // 
+        //     let numPoints = 0;
+        //     circles.attr("fill", d => {
+        // 
+        //       let x = yearScale(d['year'])
+        //       let y = grossScale(d['worldwide_gross']+1)
+        // 
+        //       if ((x > x0 && x < x1) && (y > y0 && y < y1)) {
+        //         numPoints++;
+        //         return "red";
+        //       }
+        //       else {
+        //         return genreScale(d['Main_Genre']);
+        //       }
+        // 
+        //     });
+        //     // because circles.attr "loops" through the points, our numPoints will count up the red circles
+        //     updatePanelHeader(numPoints)
+        // 
+        // }
         
         // Create a simple lasso tool for selection
         // Use *either* brush or lasso. They aren't friends
         
+        //  We'll keep a running array of coordinates [[x,y],[x,y],[x,y]...]
+        //  We will use the same <path> element to draw the current lasso using a line gen
+        var pathCoord = [];
+        var path = surface.append("path").attr("id","lasso");
+        var lineGen = d3.line().x( d => d[0] ).y( d => d[1] );
+        
+        // To make it simple to track "click and move mouse" behaviors, we use a d3.drag
+        // It's going to try to "drag" the invisible <rect> we made -- we just don't move it
+        surface.call( d3.drag().on("start", lassoStart).on("drag", lassoed).on("end", lassoEnd) );
+        
+        function lassoStart( event ) {
+            // Reset the path
+            pathCoord = [];
+            path.datum(pathCoord).attr("d",lineGen);
+            updateCircleSelection();
+        }
+        // Use path destructuring on the event
+        function lassoed( {x, y} ) {
+            // We've moved, so add a new coordinate
+            // We need to compensate for the transform-translate, so we subtract the margins
+            pathCoord.push( [x-margin.left, y-margin.top] );
+            
+            path.datum(pathCoord).attr("d",lineGen);
+            updateCircleSelection();
+        }
+        function lassoEnd( event ) {
+            // Reset the path
+            pathCoord = [];
+            path.datum(pathCoord).attr("d",lineGen);
+            updateCircleSelection();
+        }
         
         
-        
-        
-        
-        
+        // This will color the circles as red or normal based on containment in lasso
+        function updateCircleSelection() {
+          
+          let numPoints = 0;
+          
+          // Base case - empty path
+          if (pathCoord.length < 1) {
+            circles.attr("fill", d => genreScale(d['Main_Genre']) );
+          }
+          // Path has coords in it
+          else {
+            circles.attr("fill", d => {
+              // Use the scales to figure out where the point is
+              // d3 needs it to be in [x,y] format
+              let point = [yearScale(d['year']), grossScale(d['worldwide_gross']+1)];
+              
+              // d3.polygonContains takes in a polygon as [[x,y],[x,y],[x,y]...]
+              // (Ideally those points go in a counter-clockwise direction, but it should work regardless)
+              // It will test whether a point [x,y] is inside of that polygon
+              if (d3.polygonContains(pathCoord, point)) {
+                numPoints++;
+                return "red";
+              }
+              else {
+                return genreScale(d['Main_Genre']);
+              }
+            } );  
+          }
+          // because circles.attr "loops" through the points, our numPoints will count up the red circles
+          updatePanelHeader(numPoints)
+        }
         
         
         // Added in this function just to show some status
@@ -252,106 +362,6 @@
     
     </script>
     
-    <script id="notes2">
-    
-    // See bottom where we add pan/zoom
-    
-    const layer = d3.select("#graph").append("g");
-    const graphwidth = d3.select("#graph").attr("width");
-    const graphheight = d3.select("#graph").attr("height");
-    
-    const requestGraph = async () => {
-
-      //Assemble data structures for a graph
-      const nd = await d3.json("../datasets/414.nodes.json"); 
-      var nodes = []
-      nd.forEach( e => { nodes.push({'id':e}); } );
-      var links = await d3.json("../datasets/414.edges.json");
-      
-      console.log(nodes)
-      console.log(links)
-      var sim = d3.forceSimulation()
-                  .nodes(nodes)
-                  .force("links", d3.forceLink()
-                                         .links(links)
-                                         .id( d => d.id ) )
-                  .force("repulse", d3.forceManyBody().strength(-200) )
-                  .force("center", d3.forceCenter(graphwidth/2.0, graphheight/2.0))
-                  .on("tick", render);
-                  
-      // Clever trick for pre-computing the graph layout until it cools off            
-      for (var i = 0, n = Math.ceil(Math.log(sim.alphaMin()) / Math.log(1 - sim.alphaDecay())); i < n; ++i) {
-        sim.tick();
-      }
-      
-      var lines;
-      var circles;
-      function render() {
-        lines = layer.selectAll("line.link").data(links)
-                     .join( enter => { enter.append("line")
-                                            .attr("class","link")
-                                            .attr("stroke", "#333")
-                         }
-                       )
-                     .attr("x1", d => d.source.x).attr("x2", d => d.target.x)
-                     .attr("y1", d => d.source.y).attr("y2", d => d.target.y)
-        circles = layer.selectAll("circle.node").data(nodes)
-                       .join( enter => { enter.append("circle")
-                                              .attr("class","node")
-                                              .attr("fill","steelblue")
-                                              .attr("stroke", "#333")
-                                              .attr("r", 6)
-                                              .attr("cx", 0)
-                                              .attr("cy", 0)
-                                              .call( d3.drag().on("start",dragstart)
-                                                              .on("drag",dragging)
-                                                              .on("end",dragend) ) 
-                                        } 
-                            )
-                        .attr("transform", d => "translate("+d.x+","+d.y+")");
-      }
-
-      render();  // Call render once to make sure we draw circles even if simulation stops
-
-      // Use destructuring again
-      function dragstart({active,x,y}, d) {
-        // Start dragging
-        if (!active) {
-            sim.alphaTarget(0.08).restart();
-        }
-        d.fx = x;
-        d.fy = y;
-        
-      }
-      function dragging({x,y}, d) {
-        // Continue dragging
-        d.fx = x;
-        d.fy = y;
-
-      }
-      function dragend({active,x,y}, d) {
-        // End dragging a circle, make sure the simulation has enough alpha left to fix things afterwards
-        
-        // Start dragging
-        if (!active) {
-            sim.alphaTarget(0);
-        }
-        
-        d.fx = null;
-        d.fy = null;
-
-      }
-      
-      // Make the graph zoomable
-      // d3.zoom works much like d3.brush and d3.drag
-      
-      
-      
-    }
-    requestGraph();
-    
-    
-    </script>
     
     
     <!--- calls the highlight library to fill the <pre> tag with code --->
@@ -366,7 +376,6 @@
               .replace(/'/g, "&#039;");
             }
       document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
-      document.getElementById("display2").innerHTML = sanitize( document.getElementById("notes2").innerText);
       hljs.highlightAll();
     </script>    
     
