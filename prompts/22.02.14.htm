@@ -1,0 +1,144 @@
+<html>
+<head>
+  <title>INFO 4310 - Feb-14</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+  .gridlines line {
+    stroke: #bbb;
+  }
+
+  .gridlines .domain {
+    stroke: none;
+  }
+  
+  .border {
+    stroke: #333;
+    fill: none;
+  }
+  
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for February 14</h3>
+    <p>
+      Today we're going to make some linked views in a scatterplot matrix (SPLOM). We'll first code it up in an obvious way, then we'll explore some other implementation patterns for making interactions a bit more fluid.
+    </p>
+    
+    
+    <h5>HTML for today:</h5>
+    
+      <svg id="SPLOM" height="1080" width="1080">
+        
+      </svg>
+    
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+    </pre>
+    
+    
+    
+    
+    
+    <script id="notes1">
+  
+  
+  
+    
+    // 0. Get some data together
+    const loadScatter = async function() {
+      
+      const inputData = await d3.csv("../datasets/board-games-simplified.csv", d3.autoType )
+      
+      // !! subsample the data -- at most 10,106 points
+      const N = 200;
+      let data = [];
+      for (let i=0; i<N; i++) {
+          inputData[i].circles = [];
+          data.push(inputData[i]);
+      }
+      
+      // !! attributes to visualize
+      const attribs = ["average_rating", "users_rated","playing_time"];
+  
+      // 1. Let's make a scatterplot matrix cell
+      const scatter = d3.select("svg#SPLOM");
+      const width = scatter.attr("width");
+      const height = scatter.attr("height");
+      
+      // dimensions of each cell - must be square and have same margins on all sides
+      const cellWidth =  Math.min( Math.floor(height / attribs.length), Math.floor(width / attribs.length) );
+      const cellHeight = cellWidth;
+      const chartMargin = 10;
+      const chartWidth = cellWidth - (2*chartMargin);
+      const chartHeight = cellHeight - (2*chartMargin);
+      
+
+      // !! scales for cells
+      const scales = { "average_rating": d3.scaleLinear().domain(d3.extent(data, d => d['average_rating'])),
+                       "users_rated": d3.scaleSymlog().domain(d3.extent(data, d => d['users_rated'])),
+                       "playing_time": d3.scaleSymlog().domain(d3.extent(data, d => d['playing_time'])) };
+
+       
+        
+        
+        
+        
+
+    }
+    loadScatter();
+    
+
+  
+  
+  
+    
+
+    // HELPER FUNCTION
+    //  lighten a color a little bit using d3 color functions
+    function lighten(color) {
+        
+        let hclColor = d3.hcl(color);
+        let luma = Math.min(130, hclColor.l + 30);
+        return d3.rgb( d3.hcl( hclColor.h, hclColor.c, luma ) );
+      
+    }
+  
+    
+    </script>
+    
+    
+    
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>
