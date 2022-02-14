@@ -35,6 +35,7 @@
     <p>
       Today we're going to make some linked views in a scatterplot matrix (SPLOM). We'll first code it up in an obvious way, then we'll explore some other implementation patterns for making interactions a bit more fluid.
     </p>
+    <h5> This version uses Canvas and point hiding to maximize efficiency. Check drawing code. </h5>
     
     
     <h5>HTML for today:</h5>
@@ -64,7 +65,7 @@
       const inputData = await d3.csv("../datasets/board-games-simplified.csv", d3.autoType )
       
       // !! subsample the data -- at most 10,106 points
-      const N = 200;
+      const N = 5000;
       let data = [];
       for (let i=0; i<N; i++) {
           inputData[i].circles = [];
@@ -135,17 +136,7 @@
          .attr("transform",`translate(0,${cellHeight})`)
          .call(bottomGridlines);
 
-        //data join to make the circles
-        let cellCircles = chartArea.selectAll("circle.point").data(data)
-                                  .join(enter => enter.append("circle")
-                                                      .attr("class","point")
-                                                      .attr("opacity", 0.8)
-                                                      // mouseovers etc here
-                                                   )
-                                  .attr("cx", d => xScale(d[xAttrib]))
-                                  .attr("cy", d => yScale(d[yAttrib]))
-                                  .attr("r", 7)
-                                  .attr("fill", "coral" );    
+        // CIRCLE DRAWING DOES NOT HAPPEN HERE   
 
         // make a label on the corner cells
         if (xAttrib === yAttrib) {
@@ -165,15 +156,6 @@
         brushGroup.node().yAttrib = yAttrib;
         brushGroup.node().yScale = yScale;
         
-        
-        // EFFICIENCY IMPROVEMENT from end of class
-        // We add each of the circles made in this cell to an array for its corresponding data point
-        // This allows us to run through the data once and then update all 9 cells' circles
-        cellCircles.each( function(d) {
-          d.circles.push( d3.select(this) );
-        });
-        
-
         return cell;
 
       } 
@@ -215,112 +197,165 @@
       } );
       
       
+      
+      // **** BEGIN CANVAS CODE
+      // We are going to embed a canvas into the SVG element using foreignObject
+      // This is sometimes a good strategy to merge SVG content (good at interactions and text) with canvas performance
+      
+      // Start building a canvas
+      let fo = scatter.append("foreignObject")
+                      .attr("x", 0)
+                      .attr("y",0)
+                      .attr("width",width)
+                      .attr("height",height)
+                      .style("pointer-events", "none");
+      let foBody = fo.append("xhtml:body")
+                     .style("margin", "0px")
+                     .style("padding", "0px")
+                     .style("background-color", "none")
+                     .style("width", width + "px")
+                     .style("height", height + "px")
+                     .style("border", "none");
+      
+      let canvas = foBody.append("canvas").attr("width", width).attr("height", height);
+      let ctx = canvas.node().getContext('2d');
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "coral";
+      ctx.globalAlpha = 0.6;
+      
+      
+      // Now make an array structure and draw circles
+      //   We are only going to show a smaller percentage of points during interactions to make them go faster
+      //   Once the interaction is done, we will pop back in all of the points so the user can see them
+      //   To minimize the risk of false discovery, we randomly choose the subset
+      
+      // The array contains one array for each data point. Inside of those sub-arrays are all the matching <circle>
+      //  In other words, a simplified version of the .circles thing we did earlier
+      let allPoints = []; // Store every circle - [[circle_c1,circle_c2...],[circle_c1,circle_c2...]...]
+      let renderPoints = []; // Store only some % of points to show during interactions to make it faster
+      let renderProbability = 0.1;
+      for (let i=0; i<data.length; i++) {
+        let d = data[i]
+        point = []; // Make a sub-array for each data point...
+        point.d = d; // (arrays can have dictionary keys!)
+      
+        //...then fill it with a circle for each cell
+        // now we only have to check the values for each datapoint once instead of #points * #cells
+        attribs.forEach( (xAttrib, xi) => {
+          attribs.forEach( (yAttrib, yi) => {
+      
+            // but the math is a bit more annoying to deal with because we are drawing all circles on one big canvas
+            let xCorner = xi * cellWidth;
+            let xScale = scales[xAttrib].copy().range([xCorner+chartMargin,xCorner+chartMargin+chartWidth]);
+            let yCorner = yi * cellHeight;
+            let yScale = scales[yAttrib].copy().range([yCorner+chartHeight+chartMargin,yCorner+chartMargin]);
+      
+            let circle = {x: xScale(d[xAttrib]),
+                          y: yScale(d[yAttrib]) };
+            point.push(circle);
+            
+            ctx.beginPath();
+            ctx.arc(circle.x, circle.y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+      
+          });
+        });
+        allPoints.push(point);
+        if (Math.random() < renderProbability) {
+          renderPoints.push(point);
+        }    
+    }
+      
+      
+      
+      
       // BEGIN BRUSHES
       
-      // let currentBrush;  // uncomment for one active brush
+      let currentBrush;  // uncomment for one active brush
       function startbrush() {
         // Bring this in if you want to only have one brush active at a time
-        // if (currentBrush !== this) {
-        //   d3.select(currentBrush).call(this.brush.clear);
-        //   currentBrush = this;
-        // }     
+        if (currentBrush !== this) {
+          d3.select(currentBrush).call(this.brush.clear);
+          currentBrush = this;
+        }  
+        
+        // Draw only some points with no brush selection specified
+        updatePointAppearance( null, false );
           
       }
       function endbrush( { selection } ) {
-        // Return appearance if nothing selected
-        if (selection === null) {
-          updatePointAppearance();
-        }
-        // Otherwise end the brush (appearance already up to date)
-        else {
-        }
+        // Draw all points
+        updatePointAppearance( selection, true );
       }
       function brushed( { selection } ) {
         if (selection === null) return;   // endbrush handles this
         
-        updatePointAppearance();
+        // Draw only some points
+        updatePointAppearance( selection, false );
         
       }
       
       // Function to update all of the circles on the chart based on current filters
-      function updatePointAppearance() {
+      function updatePointAppearance( selection, shouldShowAllPoints ) {
         
-        // // Naive version - 27*numBrushes comparisons per data point
-        // scatter.selectAll(".point")
-        //        .attr("opacity", d => {
-        //          if ( inAreaAllBrushes(d, brushGroups) ) return 0.8
-        //          else return 0.08;
-        //        })
-        //        .attr("stroke", d => {
-        //          if ( inAreaAllBrushes(d, brushGroups) ) return "black";
-        //          else return "none";
-        //        })
-        //        .attr("stroke-width", d => {
-        //          if ( inAreaAllBrushes(d, brushGroups) ) return 1;
-        //          else return 0;
-        //        })
-        // 
+        // Select which points to draw
+        let targetArr = renderPoints;
+        if (shouldShowAllPoints) { targetArr = allPoints; } 
         
-        // // Slightly better version - 9*numBrushes comparisons per data point
-        // scatter.selectAll(".point").each( function(d) {
-        //   if ( inAreaAllBrushes(d, brushGroups) ) {
-        //     d3.select(this).attr("opacity",0.8);//.attr("stroke","black").attr("stroke-width",1);
-        //   }
-        //   else {
-        //     d3.select(this).attr("opacity",0.08);//.attr("stroke","none").attr("stroke-width",0);
-        //   }
-        // })
+        let xAttrib = currentBrush.xAttrib;
+        let yAttrib = currentBrush.yAttrib;
+        let xScale = currentBrush.xScale;
+        let yScale = currentBrush.yScale;
         
-        // Integrated version from end of class - 1*numBrushes comparisons per data point
-        // The intuition here is that we can iterate through the data, do the comparisons, then just update
-        //  the appearance of circles accordingly
-        // We earlier stored the SVG circles in the dataset's circles key so we could do these updates
-        data.forEach( d => {
-          let runningAnd = true;
-          brushGroups.forEach( function(brushGroup) {
-            let selection = d3.brushSelection(brushGroup)
-            if (selection === null) return;
-            [[x0, y0], [x1, y1]] = selection;
-            runningAnd = runningAnd && (( brushGroup.xScale.invert(x0-chartMargin) < d[brushGroup.xAttrib]) &&
-                                       ( brushGroup.xScale.invert(x1-chartMargin) > d[brushGroup.xAttrib]) &&
-                                       ( brushGroup.yScale.invert(y1-chartMargin) < d[brushGroup.yAttrib]) &&
-                                       ( brushGroup.yScale.invert(y0-chartMargin) > d[brushGroup.yAttrib]))
-                                     });
-          if (runningAnd) {
-            d.circles.forEach( circ => {
-              circ.attr("opacity",0.8);
-            })
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+        
+        // If nothing selected, draw everything
+        if (selection === null) {
+          for (let i=0; i<targetArr.length; i++) {
+            for (let j=0; j<targetArr[i].length; j++) {
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                ctx.arc(targetArr[i][j].x, targetArr[i][j].y, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            }
           }
-          else {
-            d.circles.forEach( circ => {
-              circ.attr("opacity",0.08);
-            })
-          }
-        });
-        
-        // Other efficiency ideas to think about
-        // Pre-computing the scale.invert or scaling the data values if the scale is expensive to run
-        // Ordering the brushes based on area so smaller, more selective ones run first and short-circuit (thanks Sam)
-        
-      }
-       
-      
-      // Function to test whether a point is in all of the filters
-      function inAreaAllBrushes( d, brushGroups) {
-        
-        let runningAnd = true;
-        brushGroups.forEach( function(brushGroup) {
-          let selection = d3.brushSelection(brushGroup)
-          if (selection === null) return;
-          
+        }
+        // Otherwise filter by selection
+        else {
           [[x0, y0], [x1, y1]] = selection;
-          runningAnd = runningAnd && (( brushGroup.xScale.invert(x0-chartMargin) < d[brushGroup.xAttrib]) &&
-                                     ( brushGroup.xScale.invert(x1-chartMargin) > d[brushGroup.xAttrib]) &&
-                                     ( brushGroup.yScale.invert(y1-chartMargin) < d[brushGroup.yAttrib]) &&
-                                     ( brushGroup.yScale.invert(y0-chartMargin) > d[brushGroup.yAttrib])) 
-         });
-         return runningAnd;
-      }   
+        
+          for (let i=0; i<targetArr.length; i++) {
+            let d = targetArr[i].d;
+            
+            if ( ( xScale.invert(x0-chartMargin) < d[xAttrib]) &&
+                 ( xScale.invert(x1-chartMargin) > d[xAttrib]) &&
+                 ( yScale.invert(y1-chartMargin) < d[yAttrib]) &&
+                 ( yScale.invert(y0-chartMargin) > d[yAttrib]) ) {
+                   
+              for (let j=0; j<targetArr[i].length; j++) {
+                
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                ctx.arc(targetArr[i][j].x, targetArr[i][j].y, 3, 0, 2 * Math.PI);
+                ctx.fill();
+                
+              }
+            }
+            else {
+              for (let j=0; j<targetArr[i].length; j++) {
+                
+                ctx.globalAlpha = 0.06;
+                ctx.beginPath();
+                ctx.arc(targetArr[i][j].x, targetArr[i][j].y, 3, 0, 2 * Math.PI);
+                ctx.fill();
+                
+              }
+            }
+          }
+        }
+      }
+      
         
 
     }

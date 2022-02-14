@@ -35,6 +35,7 @@
     <p>
       Today we're going to make some linked views in a scatterplot matrix (SPLOM). We'll first code it up in an obvious way, then we'll explore some other implementation patterns for making interactions a bit more fluid.
     </p>
+    <h5> This version adds color based on number of intersections. Check the brush functions. </h5>
     
     
     <h5>HTML for today:</h5>
@@ -139,7 +140,7 @@
         let cellCircles = chartArea.selectAll("circle.point").data(data)
                                   .join(enter => enter.append("circle")
                                                       .attr("class","point")
-                                                      .attr("opacity", 0.8)
+                                                      .attr("opacity", 0.5)
                                                       // mouseovers etc here
                                                    )
                                   .attr("cx", d => xScale(d[xAttrib]))
@@ -216,19 +217,40 @@
       
       
       // BEGIN BRUSHES
+      let colorScale = function(value) { return "#coral"; };  // default color scale is one that just assigns 'coral'
       
-      // let currentBrush;  // uncomment for one active brush
+      // Count up number of active brushes and update color scale
+      function updateColorScale() {
+        let numBrushes = 0;
+        brushGroups.forEach( function(brushGroup) {
+          let selection = d3.brushSelection(brushGroup);
+          if (selection !== null) numBrushes++;
+        } );
+        console.log(numBrushes)
+        if (numBrushes < 1) {
+          colorScale = function(value) { return "coral"; }  // default
+        }
+        else {
+          brushScale = d3.scaleLinear().domain([0, numBrushes])
+                                       .range( [0.2, 1] );
+          colorScale = function(value) { return d3.interpolateYlGnBu(brushScale(value)); }
+          // Here we are using a clever trick -- interpolateYlGnBu takes in a number between 0 and 1 and outputs a color
+          //  on its custom color scale -- we are using brushScale to generate a number between 0 and 1 and feed it to interpolate
+          // In practice, this is actually what scaleSequential is doing behind the scenes most of the time
+        }
+          
+      }
+      
+      
       function startbrush() {
-        // Bring this in if you want to only have one brush active at a time
-        // if (currentBrush !== this) {
-        //   d3.select(currentBrush).call(this.brush.clear);
-        //   currentBrush = this;
-        // }     
+        
+        updateColorScale();
           
       }
       function endbrush( { selection } ) {
         // Return appearance if nothing selected
         if (selection === null) {
+          updateColorScale();   // a brush was just removed, so update the color scale
           updatePointAppearance();
         }
         // Otherwise end the brush (appearance already up to date)
@@ -245,58 +267,35 @@
       // Function to update all of the circles on the chart based on current filters
       function updatePointAppearance() {
         
-        // // Naive version - 27*numBrushes comparisons per data point
-        // scatter.selectAll(".point")
-        //        .attr("opacity", d => {
-        //          if ( inAreaAllBrushes(d, brushGroups) ) return 0.8
-        //          else return 0.08;
-        //        })
-        //        .attr("stroke", d => {
-        //          if ( inAreaAllBrushes(d, brushGroups) ) return "black";
-        //          else return "none";
-        //        })
-        //        .attr("stroke-width", d => {
-        //          if ( inAreaAllBrushes(d, brushGroups) ) return 1;
-        //          else return 0;
-        //        })
-        // 
+        // First, in startbrush, we made a color scale based on the number of active brushes
         
-        // // Slightly better version - 9*numBrushes comparisons per data point
-        // scatter.selectAll(".point").each( function(d) {
-        //   if ( inAreaAllBrushes(d, brushGroups) ) {
-        //     d3.select(this).attr("opacity",0.8);//.attr("stroke","black").attr("stroke-width",1);
-        //   }
-        //   else {
-        //     d3.select(this).attr("opacity",0.08);//.attr("stroke","none").attr("stroke-width",0);
-        //   }
-        // })
-        
-        // Integrated version from end of class - 1*numBrushes comparisons per data point
-        // The intuition here is that we can iterate through the data, do the comparisons, then just update
-        //  the appearance of circles accordingly
-        // We earlier stored the SVG circles in the dataset's circles key so we could do these updates
+        // We'll keep a running count of filter matches
         data.forEach( d => {
-          let runningAnd = true;
+          let runningCount = 0;
           brushGroups.forEach( function(brushGroup) {
             let selection = d3.brushSelection(brushGroup)
             if (selection === null) return;
             [[x0, y0], [x1, y1]] = selection;
-            runningAnd = runningAnd && (( brushGroup.xScale.invert(x0-chartMargin) < d[brushGroup.xAttrib]) &&
-                                       ( brushGroup.xScale.invert(x1-chartMargin) > d[brushGroup.xAttrib]) &&
-                                       ( brushGroup.yScale.invert(y1-chartMargin) < d[brushGroup.yAttrib]) &&
-                                       ( brushGroup.yScale.invert(y0-chartMargin) > d[brushGroup.yAttrib]))
-                                     });
-          if (runningAnd) {
-            d.circles.forEach( circ => {
-              circ.attr("opacity",0.8);
-            })
-          }
-          else {
-            d.circles.forEach( circ => {
-              circ.attr("opacity",0.08);
-            })
-          }
+            if (( brushGroup.xScale.invert(x0-chartMargin) < d[brushGroup.xAttrib]) &&
+                ( brushGroup.xScale.invert(x1-chartMargin) > d[brushGroup.xAttrib]) &&
+                ( brushGroup.yScale.invert(y1-chartMargin) < d[brushGroup.yAttrib]) &&
+                ( brushGroup.yScale.invert(y0-chartMargin) > d[brushGroup.yAttrib]))
+                { 
+                  runningCount += 1
+                 }
+                                     });  
+                                     
+          d.count = runningCount; // for debug
+          
+          d.circles.forEach( circ => {
+            circ.attr("fill", colorScale(runningCount) );
+          })
+          
+            
         });
+        
+        
+
         
         // Other efficiency ideas to think about
         // Pre-computing the scale.invert or scaling the data values if the scale is expensive to run
@@ -305,22 +304,6 @@
       }
        
       
-      // Function to test whether a point is in all of the filters
-      function inAreaAllBrushes( d, brushGroups) {
-        
-        let runningAnd = true;
-        brushGroups.forEach( function(brushGroup) {
-          let selection = d3.brushSelection(brushGroup)
-          if (selection === null) return;
-          
-          [[x0, y0], [x1, y1]] = selection;
-          runningAnd = runningAnd && (( brushGroup.xScale.invert(x0-chartMargin) < d[brushGroup.xAttrib]) &&
-                                     ( brushGroup.xScale.invert(x1-chartMargin) > d[brushGroup.xAttrib]) &&
-                                     ( brushGroup.yScale.invert(y1-chartMargin) < d[brushGroup.yAttrib]) &&
-                                     ( brushGroup.yScale.invert(y0-chartMargin) > d[brushGroup.yAttrib])) 
-         });
-         return runningAnd;
-      }   
         
 
     }
