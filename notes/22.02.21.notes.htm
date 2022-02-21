@@ -22,8 +22,6 @@
           stroke: none;
         }
         
-
-        
         rect.handle {
             display: none;
         }
@@ -69,8 +67,6 @@
     
     
     <script id="notes1">
-  
-  
     
     const plot = d3.select("svg g#plot");
     const width = plot.attr("width");
@@ -138,8 +134,16 @@
                          .style("pointer-events","all");
                          
       // 1. build a pan-zoom handler
-      
-      
+      let zoomExtent = [[0,0],[chartWidth,chartHeight]];
+      let translateExtent = [[-100,-100],[chartWidth+100,chartHeight+100]];
+      var plotZoom = d3.zoom()
+                       .extent(zoomExtent)
+                       .translateExtent(translateExtent)
+                       .scaleExtent([1,10])
+                       .on("zoom", plotZoomed);                   
+                         
+      // then add the zoom handler
+      chartArea.call(plotZoom);
 
 
 
@@ -154,22 +158,133 @@
                                  .attr("opacity", 0.5);
       
       // 2. fill the minimap
+                              
+      // first trick - we're going to set our scales using the translate extents of the zoom handler instead of the data extents
+      //   this will allow us to accommodate bigger zoom windows                         
+      const minimapXScale = d3.scaleLinear().domain([xScale.invert(translateExtent[0][0]),
+                                                     xScale.invert(translateExtent[1][0])])
+                                     .range([0, minimapWidth]);
+      const minimapYScale = d3.scaleSymlog().domain([yScale.invert(translateExtent[1][1]),   // min y value is at the lower right corner
+                                                     yScale.invert(translateExtent[0][1])])
+                                     .range([minimapHeight, 0]);
       
-      
-      
+      let pointArea = minimapArea.append("g").attr("class","points")                       
+      pointArea.selectAll("circle.point").data(data)
+               .join("circle").attr("class","point")
+               .attr("cx", d => minimapXScale(d['average_rating']))
+               .attr("cy", d => minimapYScale(d['users_rated']))
+               .attr("r", 3)
+               .attr("opacity", 0.8)
+               .attr("fill", "steelblue");
 
 
       // 3. add a brush
+      //  NOTE: CSS at the top disables the handles and overlay drawing features of the brush
+      let brushGroup = minimapArea.append("g").attr("class","brush");
+      let brush = d3.brush()
+          .extent([[0,0], [minimapWidth,minimapHeight]])
+          //.on("start", startbrush)
+          .on("brush", brushed)
+          //.on("end", endbrush);
+          
+      brushGroup.call(brush)   
       
       
       
+      // when the brush is moved, update the plotZoom so that the main view matches what is selected
+      function brushed( {sourceEvent, selection} ) {
+        
+        // this will go into an infinite loop if you don't catch the things triggered by the zoom
+        //  because plotZoomed calls brush.move which invokes brushed which calls plotZoom.transform which invokes plotZoomed...
+        // sourceEvent is undefined when you cause an event function to trigger because of a programmatic call like brush.move
+        // we break the infinite loop by detecting programmatic calls of brush.move and cancelling
+        //  (these can only happen when brushed is called correctly, which calls plotZoomed, which called brushed with sourceEvent=undefined)
+        if (sourceEvent === undefined) {
+          return;
+        }
+        
+        // to update the transform to wherever the brush has been moved, we need to figure out its current location
+        // we will run the minimap scale function in reverse to find the data values for the corner provided by selection
+        let corner = [minimapXScale.invert(selection[0][0]),minimapYScale.invert(selection[0][1])];
+        
+        // now we get the current transform for the plotZoom (we do this to figure out the current zoom level)
+        // we will modify it so that it has the correct position on screen
+        let transform = d3.zoomTransform(chartArea.node());     // .node is used because d3.zoomTransform expects a plain HTML object
+                                                                // yes, this is weird, but it has to do with how sourceEvent usually includes
+                                                                //  plain HTML objects and not d3 wrapped ones -- since most of what we do
+                                                                //  is nested inside of event functions, d3 interaction events use plain HTML
+        
+        // since we know the data value of the brush's corner in the minimap, and we still have the original
+        //  scales for the screen before it was zoomed in, we can figure out where the corner is using the
+        //  coordinate system the circles live in (i.e. their actual cx and cy values compared to data)
+        // we can program the transform to move the screen based on the minimap's corner
+        // if the minimap brush has moved rightwards, we shift the transform with a negative x translate, sliding the circles leftwards
+        //  (this is a weird intuition -- the window stays in the same place and your transform is moving the content around under it)
+        // if the minimap brush has moved up and to the left, then we need to shift right (positive x) and down (positive y)
+        //  (this only occurs when you move in the space between -100 and 0 we added to the minimap, which would give negative xScale values)
+        
+        // modify the transform
+        //  we multiply by transform.k to account for the fact that things may be zoomed in
+        //    (it's how the transform math works out for the way d3 organizes its transform, this may not always be the case)
+        transform.x = -xScale(corner[0])*transform.k;
+        transform.y = -yScale(corner[1])*transform.k;
+        
+        // finally, update it
+        chartArea.call(plotZoom.transform, transform);
+      }
       
+      
+      
+      function plotZoomed( { transform } ) {
+        
+        viewport.attr("transform", transform);
+
+        // update the scales on the axes/gridlines
+        // rescale does not modify the source scale, it just returns a copy
+        let txScale = transform.rescaleX(xScale);
+        let tyScale = transform.rescaleY(yScale);
+        xAxis.scale(txScale);
+        yAxis.scale(tyScale);
+        xGridlines.scale(txScale);
+        yGridlines.scale(tyScale);
+
+        // apply new scaled axes (no need for an animation .transition() since zoom triggers so many events)
+        d3.select("g.y.axis").call(yAxis);
+        d3.select("g.x.axis").call(xAxis);
+        d3.select("g.y.gridlines").call(yGridlines);
+        d3.select("g.x.gridlines").call(xGridlines);
+        
+        // adjust circle size too
+        circles.attr("r", 6 / transform.k);
+        
+        // use the transformed scales to figure out our bounding box in data space
+        let dataBounds = [[txScale.invert(0),tyScale.invert(0)],
+                          [txScale.invert(chartWidth),tyScale.invert(chartHeight)]];
+                          
+        // then use the scale to find pixels for the min and max data values currently visible in the main view                  
+        let minimapBounds = [[minimapXScale( dataBounds[0][0] ),
+                              minimapYScale( dataBounds[0][1] )],
+                             [minimapXScale( dataBounds[1][0] ),
+                              minimapYScale( dataBounds[1][1] )]];
+        // yes, you could do this all in one operation...
+
+        brushGroup.call(brush.move, minimapBounds)
+      }
+      
+      
+      chartArea.call(plotZoom.transform, d3.zoomIdentity); // Executes plotZoomed() so that we can initiate the brush on screen
+      
+      // using .call to programmatically trigger interactions like on(brush) or on(zoom) is good practice if you have
+      //  some fancy code running inside of those events to update the user interface
+      // rather than copying in the update code and risking things breaking if you modify it later, just trigger the event
+      //  so that whatever updates need to happen will work as expected
+      // for zoom, you can update the .transform with zoomIdentity, as that's the value it has when it is initialized
+      // for a brush, you can set a specific area or just use the zoomExtent and call .move with the extent
 
     }
     drawPlot();
 
-    
-    
+      
     
     </script>
     
