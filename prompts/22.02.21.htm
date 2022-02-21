@@ -1,0 +1,197 @@
+<html>
+<head>
+  <title>INFO 4310 - Feb-21</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+  
+        .gridlines line {
+          stroke: #bbb;
+        }
+
+        .gridlines .domain {
+          stroke: none;
+        }
+        
+
+        
+        rect.handle {
+            display: none;
+        }
+        rect.overlay {
+            display: none;
+        }
+  
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for February 21</h3><p>
+      Today we're going to attempt to make a minimap to help users navigate as they explore a dataset in detail through pan and zoom. We'll make use of d3.zoom and d3.brush to power the interaction.
+    </p>
+    <p>
+      D3.js version 6 looks pretty bug-free, so we'll be updating to it. See new import on this file. There is a <a href="https://observablehq.com/@d3/d3v6-migration-guide">migration guide</a> to highlight the changes.
+    </p>
+    <p>
+      There will be a few items pending after this demo. First, one probably should also enable click interaction on the minimap so that analysts can "jump" to a new place. Second, it may be more efficient to draw the minimap in canvas form so that you can conserve browser resources. Since you don't need to update those contents as frequently or keep as high fidelity, canvas is a good choice. Third, the minimap in the corner leaves some free space below it for some additional details, perhaps through mouseovers. You might try adding a foreignObject tag within the SVG and putting a data table there to get some practice.
+    </p>
+    
+    
+    <h5>HTML for today:</h5>
+    
+    
+      <svg id="scatterplot" height="700" width="900" style="background: #fff; margin-top:50px" >
+        <g id="plot" height="700" width="700"></g>
+        <g id="minimap" width="200" height="200" transform="translate(699,1)">
+          <rect x="0" y="0" width="200" height="200" stroke="black" stroke-width="1" fill="white" opacity="1"/>
+        </g>
+      </svg>
+      
+    
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+    </pre>
+    
+    
+    
+    
+    
+    <script id="notes1">
+  
+  
+    
+    const plot = d3.select("svg g#plot");
+    const width = plot.attr("width");
+    const height = plot.attr("height");
+    const margin = { top: 5, right: 5, bottom: 35, left:35};
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+    const yAxisArea = plot.append("g")
+                          .attr("transform","translate("+(margin.left-2)+","+margin.top+")");
+    const xAxisArea = plot.append("g")
+                          .attr("transform","translate("+margin.left+","+(chartHeight+2+margin.top)+")");
+    const chartArea = plot.append("g").attr("transform","translate("+margin.left+","+margin.top+")");
+    
+    // To make sure that plot contents only show up within the chartArea, we use a clipPath
+    // region that is "filled" within the <clipPath> will stay, pixels outside of it will be deleted
+    plot.append("defs").append("clipPath")
+                      .attr("id","chartClip")
+                      .append("rect").attr("x",0)
+                                     .attr("y",0)
+                                     .attr("width",chartWidth)
+                                     .attr("height",chartHeight);
+
+    chartArea.attr("clip-path","url(#chartClip)");
+
+    const drawPlot = async () => {
+      
+      const inputData = await d3.csv("../datasets/board-games-simplified.csv", d3.autoType )
+      
+      // !! subsample the data -- at most 10,106 points
+      const N = 1500;
+      let data = [];
+      for (let i=0; i<N; i++) {
+          data.push(inputData[i]);
+      }
+      
+
+      const xScale = d3.scaleLinear().domain(d3.extent(data, d => d['average_rating']))
+                                     .range([10, chartWidth-10]);
+      const yScale = d3.scaleSymlog().domain(d3.extent(data, d => d['users_rated']))
+                                     .range([chartHeight-10, 10]);
+      let yAxis = d3.axisLeft(yScale).ticks(6).tickFormat(d3.format(".0s")); 
+      yAxisArea.append("g").attr("class", "y axis").call(yAxis);
+      let xAxis = d3.axisBottom(xScale); 
+      xAxisArea.append("g").attr("class", "x axis").call(xAxis);
+      let yGridlines = d3.axisLeft(yScale).ticks(6).tickSize(-chartWidth).tickFormat("");
+      yAxisArea.append("g").attr("class", "y gridlines").call(yGridlines);
+      let xGridlines = d3.axisBottom(xScale).tickSize(-chartHeight).tickFormat("");
+      xAxisArea.append("g").attr("class", "x gridlines").call(xGridlines);
+
+      // create the circles
+      let viewport = chartArea.append("g");
+      let circles = viewport.selectAll("circle.point").data(data)
+                            .join("circle").attr("class","point")
+                            .attr("cx", d => xScale(d['average_rating']))
+                            .attr("cy", d => yScale(d['users_rated']))
+                            .attr("r", 6)
+                            .attr("opacity", 0.8)
+                            .attr("fill", "steelblue");
+
+
+      // make an interactive "surface" at the top of the plot area
+      chartArea.append("rect").attr("x",0).attr("y",0)
+                         .attr("width",chartWidth).attr("height",chartHeight)
+                         .attr("fill","none")
+                         .style("pointer-events","all");
+                         
+      // 1. build a pan-zoom handler
+      
+      
+
+
+
+      // composing the minimap
+      // first, a teeny tiny version of the scatterplot
+      const minimap = d3.select("svg g#minimap");
+      const minimapMargin = { top: 4, right: 4, bottom: 4, left:4};
+      const minimapWidth = minimap.attr("width") - minimapMargin.left - minimapMargin.right;
+      const minimapHeight = minimap.attr("height") - minimapMargin.top - minimapMargin.bottom;
+      const minimapArea = minimap.append("g")
+                                 .attr("transform","translate("+minimapMargin.left+","+minimapMargin.top+")")
+                                 .attr("opacity", 0.5);
+      
+      // 2. fill the minimap
+      
+      
+      
+
+
+      // 3. add a brush
+      
+      
+      
+      
+
+    }
+    drawPlot();
+
+    
+    
+    
+    </script>
+    
+    
+    
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>
