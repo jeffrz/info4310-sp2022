@@ -1,0 +1,133 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>INFO 4310 - March-04</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  
+  <style>
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    
+    
+    
+    <h4>2022.03.04 Geographic Data Brainstorm</h4>
+    
+    <div class="doc-section">
+      
+      <p>
+        In the past two weeks we have discussed papers about how tool interactions help analysts to make sense of data. Ben Shneiderman outlined a visualization mantra, "Overview first, zoom and filter, then details-on-demand." This week's papers discussed the users' need for context. In this activity you will work together to brainstorm visualizations for a dataset that has both geographic and network components. You will ultimately choose the specific use case your group wants to pursue, but your design idea must provide the following functionality:
+        <ul>
+          <li>Effectively visualize some aspect of the dataset for users (you are not required to show both the network and geographic data)</li>
+          <li>Begin with an <strong>overview</strong> of the data.</li>
+          <li>Provide affordances for <strong>filtering</strong> or <strong>zooming</strong> through data.</li>
+          <li>Allow users to request and see some kind of <strong>details</strong> for data that interest them.</li>
+        </ul> 
+      </p>
+      
+      
+      
+      <p style="margin-top: 2rem; margin-bottom:0;">
+        <strong>Instructions</strong>
+      </p>
+        <strong>Step 1 - 5 minutes - [GROUP] Identify Key Goals</strong>
+        <ol class="narrow-list">
+          <li>As a group, read the instructions.</li>
+          <li>Together, take a look at the <strong>Domain section</strong> and identify <strong>between 3 and 5 domain tasks</strong> that you want to help users perform through your visualization.</li>
+          <li>Rank those tasks in order of importance using any method you'd like</li>
+          <!---<li>In any remaining time, inspect some of the <strong>examples</strong> provided at the bottom.</li>--->
+        </ol>
+        <br/>
+        <strong>Step 2 - 10 minutes - [INDIV] Two sketches</strong>
+        <ol class="narrow-list">
+          <li>Now, working individually, begin making <strong>two very rough visualization sketches</strong> that best satisfy those tasks. Keep them low fidelity.</li>
+          <li>Refer back to the <strong>dataset</strong> and think about what you want to show.</li>
+          <li>Keep polishing your ideas until your group reconvenes.</li>
+        </ol>
+        <br/>
+        <strong>Step 3 - 20 minutes - [GROUP] Final design</strong>
+        <ol class="narrow-list">
+          <li>As a group, go around and discuss each person's sketches. Keep it to 1 minute per sketch.</li>
+          <li>Working together, create a <strong>consensus sketch</strong>. You will need to pick a group member to record your final idea and present it to the class, but everyone should sketch as they go.</li>
+          <li>We will reconvene at the end to check out everyone's ideas.</li>
+        </ol>
+        <p>Note that you may design for mobile multi-touch devices or traditional desktop platforms. Pick one.</p>
+    </div>
+    
+    
+    <div class="doc-section" >
+      <h5 style="padding-top:0;">Your dataset</h5>
+      <p>
+        Today you will be working with global aircraft flight data. As in previous exercises, you will only have a general data schema. Feel free to invent specific data attributes or other plausible data you might need.
+      </p>
+      <table>
+        <tr><td><strong>Each row of data is an individual flight containing:</strong></td><td></td></tr>
+        <tr><td> Flight number </td><td> AA329, GTI585, etc.  </td></tr>
+        <tr><td> Scheduled take-off timestamp </td><td>   </td></tr>
+        <tr><td> Actual take-off timestamp </td><td>   </td></tr>
+        <tr><td> Scheduled landing timestamp </td><td>   </td></tr>
+        <tr><td> Actual landing timestamp </td><td>   </td></tr>
+        <tr><td> Was on time </td><td> boolean  </td></tr>
+        <tr><td> Total delayed time </td><td> minutes  </td></tr>
+        <tr><td> Total time in the air </td><td> minutes  </td></tr>
+        <tr><td> Taxi time at both airports </td><td>   </td></tr>
+        <tr><td> Number of miles traveled </td><td>   </td></tr>
+        <tr><td> Whether cargo or passengers were carried </td><td>   </td></tr>
+        <tr><td> Amount of cargo / passengers </td><td>   </td></tr>
+        <tr><td> Altitude data </td><td> Alt over flight time, highest point, etc  </td></tr>
+        <tr><td> Departing airport code </td><td> KITH, EGLL, RKSI  </td></tr>
+        <tr><td> Arriving airport code </td><td>   </td></tr>
+        <tr><td> Departing and arriving airport metadata </td><td> Lat/lng, state/country, avg ontime, weather at the time, etc. </td></tr>
+      </table>
+      <table>
+        <tr><td><strong>You can also construct aggregate data for the flights so that users don't have to count things up or average. For example:</strong></td><td></td></tr>
+        <tr><td> Number of flights between two airports, states, or countries.  </td></tr>
+        <tr><td> Average number of flights per hour taking off between two airports </td></tr>
+        <tr><td> Min, max, and median lateness for an airport, state, or country </td></tr>
+        <tr><td> Histogram of take-off times to show popular days for flights </td></tr>
+      </table>
+      <table>
+        <tr><td><strong>Finally, you can construct network data from this dataset. For example:</strong></td><td></td></tr>
+        <tr><td> Each airport is a node and each edge is a single flight. </td></tr>
+        <tr><td> Each state is a node and there is an edge if a flight happens between the two states. Edges are weighted based on number of flights. </td></tr>
+        <tr><td> Each country is a node and weighted edges show the total amount of cargo per week between them. </td></tr>
+      </table>
+    </div>
+    
+    <div class="doc-section" >
+      <h5 style="padding-top:0;">Domain tasks</h5>
+      <p style="margin-top:30px">Choose between 3 and 5 domain tasks that are most important for making sense of geographic or network relationships between airline flights and rank them in order of importance.</p>
+      <ul>
+        <li>What are the most common flight destination [airport/state/country]?</li>
+        <li>What are the most common [airport/state/country] to depart?</li>
+        <li>What [airport/state/country] has the least/most late arrivals?</li>
+        <li>What [airport/state/country] has the least/most late departures</li>
+        <li>What [airport/state/country] has the best/worst flight delays in total</li>
+        <li>What [airport/state/country] wastes the least/most time on taxiing</li>
+        <li>What [airport/state/country] has the worst/best weather for flights</li>
+        <li>What [airport/state/country] has the least/most arriving or departing passengers?</li>
+        <li>What [airport/state/country] has the lesat/most arriving or departing cargo?</li>
+        <li>At what time are least/most flights in this [airport/state/country/globe]?</li>
+        <li>What [hour/day] is least/most popular for this [airport/state/country]</li>
+        <li>What [hour/day] has the worst delays for this [airport/state/country]</li>
+        <li>What [hour/day] has the least/most taxiing for this [airport/state/country]</li>
+        <li>What [airport-airport, state-state, country-country] path is the least/most popular </li>
+        <li>What [airport-airport, state-state, country-country] path has the least/most delays</li>
+        <li>What [airport-airport, state-state, country-country] path has the worst/best taxi times</li>
+        <li>What [airport-airport, state-state, country-country] path has the least/most passengers</li>
+        <li>What [airport-airport, state-state, country-country] path has the least/most cargo</li>
+        <li>[CREATE YOUR OWN TASK #1]</li>
+        <li>[CREATE YOUR OWN TASK #2]</li>
+      </ul>
+    </div>
+    
+    
+  </div>
+</body>
+</html>
