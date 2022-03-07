@@ -1,0 +1,245 @@
+<html>
+<head>
+  <title>INFO 4310 - March-7</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+        .gridlines line {
+          stroke: #bbb;
+        }
+
+        .gridlines .domain {
+          stroke: none;
+        }
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for March 7</h3>
+    <p>
+      Today we'll play around with a few different "degree of interest" functions. We will first implement these on a grid, and then we will apply them to a real scatterplot.
+    </p>
+        
+    <h5>HTML for today:</h5>
+    
+    
+      <h5>Circular</h5>    
+      <svg id="grid1" height="512" width="512" style="background: #fff; margin-top:50px" >
+        <rect x="0" y="0" width="512" height="512" fill="#EEE"\>
+      </svg>
+      <h5>Cartesian</h5>
+      <svg id="grid2" height="512" width="512" style="background: #fff; margin-top:50px" >
+        <rect x="0" y="0" width="512" height="512" fill="#EEE"\>
+      </svg>
+      <h5>Plot</h5>
+      <svg id="plot" height="700" width="700" style="background: #fff; margin-top:50px" >
+      </svg>
+      
+      
+    
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+      <code id="display2" class="hljs javascript">
+      </code>
+    </pre>
+    
+    
+    
+    
+    
+    
+    
+    <script id="notes1">
+    
+    // Make a fake dataset
+    let dat1 = [];
+    let dat2 = [];
+    const stepSize = 16;
+    for ( let x=stepSize; x < 512; x=x+stepSize ) {
+      for ( let y=stepSize; y < 512; y=y+stepSize ) {
+        dat1.push( { "x":x, "y":y } );
+        dat2.push( { "x":x, "y":y } );
+      }
+    }
+    // Make a simple circle grid
+    let fishCircles = d3.select("#grid1").selectAll("circle").data(dat1)
+                                         .join("circle")
+                                         .attr("cx", d => d.x)
+                                         .attr("cy", d => d.y)
+                                         .attr("r", 2)
+                                         .attr("fill","steelblue"); 
+    // make an interactive "surface" at the top of the plot area
+    let fishInteract = d3.select("#grid1").append("rect").attr("x",0).attr("y",0)
+                                 .attr("width",512).attr("height",512)
+                                 .attr("fill","none")
+                                 .style("pointer-events","all"); 
+                                       
+    let cartCircles = d3.select("#grid2").selectAll("circle").data(dat1)
+                                         .join("circle")
+                                         .attr("cx", d => d.x)
+                                         .attr("cy", d => d.y)
+                                         .attr("r", 2)
+                                         .attr("fill","steelblue");
+    // make an interactive "surface" at the top of the plot area
+    let cartInteract = d3.select("#grid2").append("rect").attr("x",0).attr("y",0)
+                                 .attr("width",512).attr("height",512)
+                                 .attr("fill","none")
+                                 .style("pointer-events","all"); 
+    
+    // Fisheye lens function
+    
+    
+    
+    fishInteract.on("mouseout", () => {
+      
+      
+    });
+    fishInteract.on("mousemove", ( event ) => {
+      
+      
+    });
+    
+    
+    // Cartesian/manhattan lens function
+
+
+    cartInteract.on("mouseout", () => {
+      
+      
+    });
+    cartInteract.on("mousemove", ( event ) => {
+      
+      
+    });
+    
+    
+    
+    
+    
+    
+    </script>
+    
+    
+    <script id="notes2">
+  
+    
+    const plot = d3.select("svg#plot");
+    const width = plot.attr("width");
+    const height = plot.attr("height");
+    const margin = { top: 5, right: 5, bottom: 35, left:35};
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+    const yAxisArea = plot.append("g")
+                          .attr("transform","translate("+(margin.left-2)+","+margin.top+")");
+    const xAxisArea = plot.append("g")
+                          .attr("transform","translate("+margin.left+","+(chartHeight+2+margin.top)+")");
+    const chartArea = plot.append("g").attr("transform","translate("+margin.left+","+margin.top+")");
+    
+
+    const drawPlot = async () => {
+      
+      const inputData = await d3.csv("../datasets/board-games-simplified.csv", d3.autoType )
+      
+      // !! subsample the data -- at most 10,106 points
+      const N = 1000;
+      let data = [];
+      for (let i=0; i<N; i++) {
+          data.push(inputData[i]);
+      }
+      
+      const xScale = d3.scaleLinear().domain(d3.extent(data, d => d['average_rating']))
+                                     .range([10, chartWidth-10]);
+      const yScale = d3.scaleSymlog().domain(d3.extent(data, d => d['users_rated']))
+                                     .range([chartHeight-10, 10]);
+      let yAxis = d3.axisLeft(yScale).ticks(6).tickFormat(d3.format(".0s")); 
+      yAxisArea.append("g").attr("class", "y axis").call(yAxis);
+      let xAxis = d3.axisBottom(xScale); 
+      xAxisArea.append("g").attr("class", "x axis").call(xAxis);
+      let yGridlines = d3.axisLeft(yScale).ticks(6).tickSize(-chartWidth).tickFormat("");
+      yAxisArea.append("g").attr("class", "y gridlines").call(yGridlines);
+      let xGridlines = d3.axisBottom(xScale).tickSize(-chartHeight).tickFormat("");
+      xAxisArea.append("g").attr("class", "x gridlines").call(xGridlines);
+
+      let circles = chartArea.selectAll("circle.point").data(data)
+                            .join("circle").attr("class","point")
+                            .attr("cx", d => xScale(d['average_rating']))
+                            .attr("cy", d => yScale(d['users_rated']))
+                            .attr("r", 6)
+                            .attr("opacity", 0.8)
+                            .attr("fill", "steelblue");
+      plot.append("rect").attr("x",0).attr("y",0)
+                         .attr("width", width).attr("height",height)
+                         .attr("fill","none");
+
+                         
+      // // To copy/paste
+      // xAxis.scale(xDoiScale);
+      // yAxis.scale(yDoiScale);
+      // d3.select("g.x.axis").call(xAxis);
+      // d3.select("g.y.axis").call(yAxis);
+      // xGridlines.scale(xDoiScale);
+      // yGridlines.scale(yDoiScale);
+      // d3.select("g.x.gridlines").call(xGridlines);
+      // d3.select("g.y.gridlines").call(yGridlines);
+
+
+      
+      plot.on("mouseout", () => {
+        
+        
+      });
+      plot.on("mousemove", ( event ) => {
+        
+        
+      });
+
+      
+      
+
+
+
+    }
+    drawPlot();
+
+      
+    
+    
+    
+    </script>
+    
+    
+    
+    
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      document.getElementById("display2").innerHTML = sanitize( document.getElementById("notes2").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>
