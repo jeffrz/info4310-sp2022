@@ -99,29 +99,128 @@
                                  .style("pointer-events","all"); 
     
     // Fisheye lens function
+    const r = 100;
+    const distortion = 2;
+    var focusPt = null;
     
+    
+    function distort( d ) {
+        // d === { x, y }
+        if ( focusPt === null ) { return { x: d.x, y: d.y, z: 1 }; }
+        
+        let dx = d.x - focusPt.x;
+        let dy = d.y - focusPt.y;
+        let dist = Math.sqrt( dx*dx + dy*dy );
+        
+        if ( dist >= r ) { return { x: d.x, y: d.y, z: 1 }; }
+        else {
+          
+          let scaleFactor = (( r * (Math.exp(distortion)-Math.exp( distortion*(1-dist/r))))/(Math.exp(distortion)-1) ) / dist;
+          
+          return { x: focusPt.x + (dx * scaleFactor), y: focusPt.y + (dy * scaleFactor), z: scaleFactor };
+        }
+    }
     
     
     fishInteract.on("mouseout", () => {
-      
-      
+      focusPt = null;
+      fishCircles.each( function(d) {
+        let dF = distort(d);
+        d3.select(this).attr("cx", dF.x).attr("cy", dF.y).attr("r", dF.z * 2);
+      });
     });
     fishInteract.on("mousemove", ( event ) => {
-      
-      
+      [x, y] = d3.pointer(event);
+      focusPt = {"x": x, "y": y};
+      fishCircles.each( function(d) {
+        let dF = distort(d);
+        d3.select(this).attr("cx", dF.x).attr("cy", dF.y).attr("r", dF.z * 2);
+      });
     });
     
     
     // Cartesian/manhattan lens function
+    
+    // sub-scale, kinda like a subclass
+    function doiScale( originalScale, distortion, focusPt ) {
+        
+        function scale(d) {
+          
+          let x = originalScale(d);
+          if ( focusPt === null ) { return x; }
+          
+          let isLeft = x < focusPt;
+          let [min, max] = d3.extent( scale.range() );
+          let totalDist = isLeft ? focusPt - min : max - focusPt;
+          if ( totalDist === 0 ) { totalDist = max - min }
+          
+          let dist = Math.abs(x - focusPt);
+          let offset = ( totalDist * ( distortion + 1 ) ) / ( distortion + (totalDist / dist) );
+          
+          return isLeft ? focusPt - offset : focusPt + offset;
+        }
+        
+        scale.domain = function(x) {
+          if (!arguments.length) return originalScale.domain();
+          originalScale.domain(x);
+          return scale;
+        }
+        scale.range = function(x) {
+          if (!arguments.length) return originalScale.range();
+          originalScale.range(x);
+          return scale;
+        }
+        scale.focusPt = function(x) {
+          if (!arguments.length) return focusPt;
+          // do a check to make sure x is a number
+          focusPt = x;
+          return scale;
+        }
+        scale.distortion = function(x) {
+          if (!arguments.length) return distortion;
+          // do a check to make sure x is a number
+          distortion = x;
+          return scale;
+        }
+        
+        scale.copy = function() {
+          return doiScale( originalScale.copy(), distortion, focusPt);
+        }
+        scale.nice = originalScale.nice;
+        scale.ticks = originalScale.ticks;
+        scale.tickFormat = originalScale.tickFormat;
+        return scale;
+    }
+    
+    let xCartScale = doiScale( d3.scaleLinear(), 1, 256 );
+    xCartScale.domain([0,512])
+              .range([0,512]);
+    let yCartScale = doiScale( d3.scaleLinear(), 1, 256 );
+    yCartScale.domain([0,512])
+              .range([0,512]);
+    
+    //remember that scales are functions
+    //  xCartScale(50) => pixels
 
 
     cartInteract.on("mouseout", () => {
-      
-      
+      xCartScale.focusPt(null);
+      yCartScale.focusPt(null);
+      cartCircles.each( function(d) {
+        let dx = xCartScale(d.x);
+        let dy = yCartScale(d.y);
+        d3.select(this).attr("cx", dx).attr("cy", dy);
+      });
     });
     cartInteract.on("mousemove", ( event ) => {
-      
-      
+      [x,y] = d3.pointer(event)
+      xCartScale.focusPt(x);
+      yCartScale.focusPt(y);
+      cartCircles.each( function(d) {
+        let dx = xCartScale(d.x);
+        let dy = yCartScale(d.y);
+        d3.select(this).attr("cx", dx).attr("cy", dy);
+      });
     });
     
     
@@ -182,9 +281,14 @@
       plot.append("rect").attr("x",0).attr("y",0)
                          .attr("width", width).attr("height",height)
                          .attr("fill","none");
-
+      
+      let xDoiScale = doiScale( xScale, 1, null );
+      let yDoiScale = doiScale( yScale, 1, null );
                          
       // // To copy/paste
+      
+      // update the focus point
+      
       // xAxis.scale(xDoiScale);
       // yAxis.scale(yDoiScale);
       // d3.select("g.x.axis").call(xAxis);
@@ -193,6 +297,8 @@
       // yGridlines.scale(yDoiScale);
       // d3.select("g.x.gridlines").call(xGridlines);
       // d3.select("g.y.gridlines").call(yGridlines);
+      
+      // update the circles
 
 
       
