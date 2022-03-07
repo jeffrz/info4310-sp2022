@@ -103,93 +103,104 @@
     const distortion = 2;
     var focusPt = null;
     
-    
+    // Take in point d and output new version of d that has been distorted by the lens
+    // Assumes focusPt is up to date with mouse movement ( if null then lens not on screen )
     function distort( d ) {
-        // d === { x, y }
-        if ( focusPt === null ) { return { x: d.x, y: d.y, z: 1 }; }
-        
-        let dx = d.x - focusPt.x;
-        let dy = d.y - focusPt.y;
-        let dist = Math.sqrt( dx*dx + dy*dy );
-        
-        if ( dist >= r ) { return { x: d.x, y: d.y, z: 1 }; }
-        else {
+      if ( focusPt === null ) { return { x: d.x, y: d.y, z: 1 }; }
+      
+      let dx = d.x - focusPt.x;
+      let dy = d.y - focusPt.y;
+      let dist = Math.sqrt( dx*dx + dy*dy );
+      
+      if ( dist >= r ) { return { x: d.x, y: d.y, z: 1 }; }
+      else {
+          scaleFactor = (( r*(Math.exp(distortion)-Math.exp( distortion*(1 - (dist/r)) ) ) )/ (Math.exp(distortion) - 1) )/dist
           
-          let scaleFactor = (( r * (Math.exp(distortion)-Math.exp( distortion*(1-dist/r))))/(Math.exp(distortion)-1) ) / dist;
-          
-          return { x: focusPt.x + (dx * scaleFactor), y: focusPt.y + (dy * scaleFactor), z: scaleFactor };
-        }
+          return {x: focusPt.x + (dx * scaleFactor), y: focusPt.y + (dy * scaleFactor), z: scaleFactor};  
+      }
+      
     }
-    
-    
     fishInteract.on("mouseout", () => {
       focusPt = null;
       fishCircles.each( function(d) {
         let dF = distort(d);
-        d3.select(this).attr("cx", dF.x).attr("cy", dF.y).attr("r", dF.z * 2);
+        d3.select(this).attr("cx", dF.x).attr("cy", dF.y).attr("r", dF.z*2);
       });
     });
     fishInteract.on("mousemove", ( event ) => {
-      [x, y] = d3.pointer(event);
-      focusPt = {"x": x, "y": y};
+      [x, y] = d3.pointer(event)
+      focusPt = { "x":x, "y":y };
       fishCircles.each( function(d) {
         let dF = distort(d);
-        d3.select(this).attr("cx", dF.x).attr("cy", dF.y).attr("r", dF.z * 2);
+        d3.select(this).attr("cx", dF.x).attr("cy", dF.y).attr("r", dF.z*2);
       });
     });
     
     
     // Cartesian/manhattan lens function
-    
-    // sub-scale, kinda like a subclass
-    function doiScale( originalScale, distortion, focusPt ) {
+    //  We'll make our own custom scale
+    //  There are many reasons to make a custom scale rather than just a function
+    //  For one thing, if you do it right then what you make will be compatible with other d3 elements
+    //  For another, it can force you to think about what your scale needs to do.
+    // doiScale will return a modified version of originalScale 
+    // Recall that scales are functions with other special properties attached
+    // So our custom scale creates a function called scale, and returns it at the end 
+    //   (this becomes our scale "object", just like every other d3 scale)
+    // Notice how the other things in doiScale modify the scale function to give it domain, range, etc
+    // Custom scales need to make sure to inherit domain, range, nice, ticks, tickFormat, and copy
+    function doiScale(originalScale, distortion, focusPt) {
+            
+      function scale(d) {
+        let x = originalScale(d);
+        if ( focusPt === null ) { return x; }
         
-        function scale(d) {
-          
-          let x = originalScale(d);
-          if ( focusPt === null ) { return x; }
-          
-          let isLeft = x < focusPt;
-          let [min, max] = d3.extent( scale.range() );
-          let totalDist = isLeft ? focusPt - min : max - focusPt;
-          if ( totalDist === 0 ) { totalDist = max - min }
-          
-          let dist = Math.abs(x - focusPt);
-          let offset = ( totalDist * ( distortion + 1 ) ) / ( distortion + (totalDist / dist) );
-          
-          return isLeft ? focusPt - offset : focusPt + offset;
-        }
+        let isLeft = x < focusPt;
+        let [min, max] = d3.extent(scale.range());  // range may be inverted
+        let totalDist = isLeft ? focusPt - min : max - focusPt;
+        if ( totalDist === 0) { totalDist = max - min; }
         
-        scale.domain = function(x) {
-          if (!arguments.length) return originalScale.domain();
-          originalScale.domain(x);
-          return scale;
-        }
-        scale.range = function(x) {
-          if (!arguments.length) return originalScale.range();
-          originalScale.range(x);
-          return scale;
-        }
-        scale.focusPt = function(x) {
-          if (!arguments.length) return focusPt;
-          // do a check to make sure x is a number
-          focusPt = x;
-          return scale;
-        }
-        scale.distortion = function(x) {
-          if (!arguments.length) return distortion;
-          // do a check to make sure x is a number
-          distortion = x;
-          return scale;
-        }
+        let dist = Math.abs(x-focusPt);
+        let offset = ( totalDist * ( distortion + 1) ) / ( distortion + (totalDist / dist));
+        // 2*totalDist / ( 1 + (totalDist/dist) )
+        //  2 / (1 + 2) = .66  for 0.5,   2 / (1 + 4) = .4 for 0.25
         
-        scale.copy = function() {
-          return doiScale( originalScale.copy(), distortion, focusPt);
-        }
-        scale.nice = originalScale.nice;
-        scale.ticks = originalScale.ticks;
-        scale.tickFormat = originalScale.tickFormat;
-        return scale;
+        return isLeft ? focusPt - offset : focusPt + offset;
+      }
+      
+      scale.domain = function(x) {
+        if (!arguments.length) return originalScale.domain();
+        originalScale.domain(x);
+        return scale;  
+        
+        // Note, because we are re-using we could get away with just returning originalScale.domain(x)
+        //  or even just setting scale.domain = originalScale.domain.
+        // I'm just expanding it out here to show the pattern and program flow for the getters / setters
+      }
+      scale.range = function(x) {
+        if (!arguments.length) return originalScale.range();
+        originalScale.range(x);
+        return scale;  
+      }
+      scale.focusPt = function(x) {
+        if (!arguments.length) return focusPt;
+        focusPt = x;
+        return scale;  
+      }
+      scale.distortion = function(x) {
+        if (!arguments.length) return distortion;
+        distortion = x;
+        return scale;  
+      }
+      // Added after the error in applying axes
+      scale.copy = function() {
+        return doiScale(originalScale.copy(), distortion, focusPt);
+      };
+      
+      scale.nice = originalScale.nice;
+      scale.ticks = originalScale.ticks;
+      scale.tickFormat = originalScale.tickFormat;
+      return scale;
+      
     }
     
     let xCartScale = doiScale( d3.scaleLinear(), 1, 256 );
@@ -199,11 +210,9 @@
     yCartScale.domain([0,512])
               .range([0,512]);
     
-    //remember that scales are functions
-    //  xCartScale(50) => pixels
-
 
     cartInteract.on("mouseout", () => {
+      // update focus
       xCartScale.focusPt(null);
       yCartScale.focusPt(null);
       cartCircles.each( function(d) {
@@ -213,7 +222,8 @@
       });
     });
     cartInteract.on("mousemove", ( event ) => {
-      [x,y] = d3.pointer(event)
+      [x, y] = d3.pointer(event)
+      // update focus
       xCartScale.focusPt(x);
       yCartScale.focusPt(y);
       cartCircles.each( function(d) {
@@ -252,12 +262,13 @@
       const inputData = await d3.csv("../datasets/board-games-simplified.csv", d3.autoType )
       
       // !! subsample the data -- at most 10,106 points
-      const N = 1000;
+      const N = 3000;
       let data = [];
       for (let i=0; i<N; i++) {
           data.push(inputData[i]);
       }
       
+
       const xScale = d3.scaleLinear().domain(d3.extent(data, d => d['average_rating']))
                                      .range([10, chartWidth-10]);
       const yScale = d3.scaleSymlog().domain(d3.extent(data, d => d['users_rated']))
@@ -278,17 +289,13 @@
                             .attr("r", 6)
                             .attr("opacity", 0.8)
                             .attr("fill", "steelblue");
-      plot.append("rect").attr("x",0).attr("y",0)
-                         .attr("width", width).attr("height",height)
-                         .attr("fill","none");
-      
-      let xDoiScale = doiScale( xScale, 1, null );
-      let yDoiScale = doiScale( yScale, 1, null );
+      interact = chartArea.append("rect").attr("x",0).attr("y",0)
+                          .attr("width", chartWidth).attr("height",chartHeight)
+                          .attr("fill","none")
+                          .style("pointer-events","all");;
+
                          
       // // To copy/paste
-      
-      // update the focus point
-      
       // xAxis.scale(xDoiScale);
       // yAxis.scale(yDoiScale);
       // d3.select("g.x.axis").call(xAxis);
@@ -297,18 +304,62 @@
       // yGridlines.scale(yDoiScale);
       // d3.select("g.x.gridlines").call(xGridlines);
       // d3.select("g.y.gridlines").call(yGridlines);
-      
-      // update the circles
 
-
+      // Make some blank doiScales
+      // This time we actually give it the original x and y scales to adjust
+      xDoiScale = doiScale(xScale, 1, null);
+      yDoiScale = doiScale(yScale, 1, null);
       
-      plot.on("mouseout", () => {
+      interact.on("mouseout", () => {
+        // Zero out the focus point, just like before
+        xDoiScale.focusPt(null);
+        yDoiScale.focusPt(null);
         
+        // Re-apply the scale now that focus has been changed
+        xAxis.scale(xDoiScale);
+        yAxis.scale(yDoiScale);
+        // Use .call to update the SVG visuals to match
+        d3.select("g.x.axis").call(xAxis);  // This will throw an exception if there is no .copy in doiScale
+        d3.select("g.y.axis").call(yAxis);
+        // Same thing for gridlines
+        xGridlines.scale(xDoiScale);
+        yGridlines.scale(yDoiScale);
+        d3.select("g.x.gridlines").call(xGridlines);
+        d3.select("g.y.gridlines").call(yGridlines);
         
+        // Compute new circle positions
+        //   Yes, you could also do this with circles.attr("cx", d => xDoiScale(d['average_rating'])) etc etc
+        circles.each( function(d) {
+          let dx = xDoiScale(d['average_rating']);
+          let dy = yDoiScale(d['users_rated']);
+          d3.select(this).attr("cx", dx).attr("cy", dy);
+        });
       });
-      plot.on("mousemove", ( event ) => {
+      interact.on("mousemove", ( event ) => {
+        [x, y] = d3.pointer(event)
+        // Update the focus point to the pointer
+        xDoiScale.focusPt(x);
+        yDoiScale.focusPt(y);
         
+        // Re-apply the scale now that focus has been changed
+        xAxis.scale(xDoiScale);
+        yAxis.scale(yDoiScale);
+        // Use .call to update the SVG visuals to match
+        d3.select("g.x.axis").call(xAxis);  // This will throw an exception if there is no .copy in doiScale
+        d3.select("g.y.axis").call(yAxis);
+        // Same thing for gridlines
+        xGridlines.scale(xDoiScale);
+        yGridlines.scale(yDoiScale);
+        d3.select("g.x.gridlines").call(xGridlines);
+        d3.select("g.y.gridlines").call(yGridlines);
         
+        // Compute new circle positions
+        //   Yes, you could also do this with circles.attr("cx", d => xDoiScale(d['average_rating'])) etc etc
+        circles.each( function(d) {
+          let dx = xDoiScale(d['average_rating']);
+          let dy = yDoiScale(d['users_rated']);
+          d3.select(this).attr("cx", dx).attr("cy", dy);
+        });
       });
 
       
