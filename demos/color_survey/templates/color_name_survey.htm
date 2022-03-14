@@ -1,0 +1,61 @@
+<html>
+<head>
+  <title>Name a Color!</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  <link rel="stylesheet" type="text/css" href="/static/normalize.css">
+  <link rel="stylesheet" type="text/css" href="/static/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="/static/custom-style.css">
+  
+  <style>
+    #color-block {
+        width: 250px;
+        height: 100px;
+        border: 1px solid #333;
+        background-color: {{ colorVal }};
+    }
+    #colorName { 
+        width: 250px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+  <h4>Name a Color!</h4>
+  <p>This is an informal survey for <a href="https://jeffrz.github.io/info4310-sp2022/">INFO4310</a> at Cornell University. In order to practice working with color information, we are collecting data about color names and favorite colors so that we can visualize them. This survey is inspired by the <a href="https://blog.xkcd.com/2010/05/03/color-survey-results/">XKCD color survey</a>.<br/>
+  The survey is anonymous, and no compensation is offered for completing it. Collected data will not be used for research, and will only be used for class activities.</p>
+  
+  <p><span style="font-weight: bold;">You can take this survey as many times as you like. Each time you press submit you'll get a new color to name!</span></p>
+  
+  <h5 style="padding-top:0;">Here is a color:</h5>
+  <!--- block of color here, styled using server-side templating --->
+  <div id="color-block"></div>
+  <div style="padding-top: 30px;">
+    <form method="post">
+      <label for="colorName">Please type a name for the color you see above:</label>
+      <input name="colorName" id="colorName" required>
+      <br/>
+      <input type="hidden" id="colorValue" name="colorValue" value="{{ colorVal }}">
+      <input type="hidden" id="surveyType" name="surveyType" value="color_name">
+      <input type="submit" style="margin-top: 40px;" value="Submit">
+      
+      <p>The following items are optional. The survey will remember your answers if you want to try it again</p>
+      <label for="genderIdent">What is your gender identity?</label>
+      <select name="genderIdent" id="genderIdent">
+        <option value="" {% if genderIdent=="" %} selected="selected" {% endif %}>Don't want to say</option>
+        <option value="F" {% if genderIdent=="F" %} selected="selected" {% endif %}>Female</option>
+        <option value="M" {% if genderIdent=="M" %} selected="selected"{% endif %}>Male</option>
+        <option value="NB" {% if genderIdent=="NB" %} selected="selected"{% endif %}>Non-binary</option>
+      </select>
+      <label for="colorBlind">Do you have a form of color blindness?</label>
+      <select name="colorBlind" id="colorBlind">
+        <option value="" {% if colorBlind=="" %} selected="selected" {% endif %}>Don't want to say</option>
+        <option value="DontKnow" {% if colorBlind=="DontKnow" %} selected="selected" {% endif %}>Don't know</option>
+        <option value="Yes" {% if colorBlind=="Yes" %} selected="selected"{% endif %}>Yes</option>
+        <option value="No" {% if colorBlind=="No" %} selected="selected"{% endif %}>No</option>
+      </select>
+    </form>
+  </div>
+  
+  </div>
+</body>
+</html>
