@@ -151,8 +151,12 @@
       dataset = await d3.csv("https://color4310.herokuapp.com/dump_data", d3.autoType )
       
       // Any pre-processing?
+      dataset.forEach( (d, i) => {
+        d.colorName = d.colorName.toLowerCase();
+      });
+      dataset.sort( (a, b) => d3.ascending(a.colorName, b.colorName) );
+      // Is sorting by name the best choice? What else could you do?
       
-        
       console.log(dataset);
       updateHexChart(dataset);
       updateCircleChart(dataset);
@@ -168,13 +172,63 @@
     const hexRadius = 200;
     
     // Need scales for X and Y position in either hexagon
+    // assume that we're a getting d3.rgb() color
     
+    let hexXPos = color => hexCenter.x + hexRadius * ( (0.866 * color.b/255) - (0.866 * color.r/255) );
+    let hexYPos = color => hexCenter.y + hexRadius * ( (color.g/255) - (0.5*color.b/255) - (0.5*color.r/255) )
     
     // Hexagonal visualization
     const updateHexChart = async (data) => {
-    
       
+      let darkCircleData = [];
+      let lightCircleData = [];
+      data.forEach( d => {
+        
+        let color = d3.rgb(d.colorValue);
+        if ( color.r != 0 && color.g != 0 && color.b != 0 ) {
+          lightCircleData.push(d);
+        }
+        else {
+          darkCircleData.push(d);
+        }
+        
+      });
       
+      darkHex.selectAll("circle.darkHexPoint").data(darkCircleData, d => d.id)
+             .join( enter => enter.append("circle").attr("class","darkHexPoint")
+                                  .attr("fill", d => d.colorValue)
+                                  .attr("r", 0)
+                                  .attr("cx", d => hexXPos(d3.rgb(d.colorValue)) )
+                                  .attr("cy", d => hexYPos(d3.rgb(d.colorValue)) )
+                                  .call( enter => enter.transition()
+                                                       .duration(800)
+                                                       .ease(d3.easeBackOut)
+                                                       .attr("r", 8) ),
+                    update => update.attr("fill", d => d.colorValue)
+                                    .attr("cx", d => hexXPos(d3.rgb(d.colorValue)) )
+                                    .attr("cy", d => hexYPos(d3.rgb(d.colorValue)) ),
+                    exit => exit.call( exit => exit.transition().duration(800)
+                                                   .attr("opacity",0)
+                                                   .remove() )  
+                                );
+                                
+        lightHex.selectAll("circle.lightHexPoint").data(lightCircleData, d => d.id)
+               .join( enter => enter.append("circle").attr("class","lightHexPoint")
+                                    .attr("fill", d => d.colorValue)
+                                    .attr("r", 0)
+                                    .attr("cx", d => hexXPos(d3.rgb(d.colorValue)) )
+                                    .attr("cy", d => hexYPos(d3.rgb(d.colorValue)) )
+                                    .call( enter => enter.transition()
+                                                         .duration(800)
+                                                         .ease(d3.easeBackOut)
+                                                         .attr("r", 8) ),
+                      update => update.attr("fill", d => d.colorValue)
+                                      .attr("cx", d => hexXPos(d3.rgb(d.colorValue)) )
+                                      .attr("cy", d => hexYPos(d3.rgb(d.colorValue)) ),
+                      exit => exit.call( exit => exit.transition().duration(800)
+                                                     .attr("opacity",0)
+                                                     .remove() )  
+                                  );
       
       
       
@@ -194,13 +248,39 @@
     const circleOuterRadius = Math.min(width/2.0,height/2.0);
     
     // ---- Create some scales for the circular color chart
-    
+    // assume we get a hsl color from d3
+    let valueScale = d3.scaleLinear().domain([0,1])
+                                     .range([circleInnerRadius+14, circleOuterRadius-14]);
+                                     
+    let xPos =  color => circleCenter.x + valueScale(color.l) * Math.cos( (color.h-90)*Math.PI/180.0 );
+    let yPos =  color => circleCenter.y + valueScale(color.l) * Math.sin( (color.h-90)*Math.PI/180.0 );
                           
     
     // Called by updateData, updates the circular visualization on call
     const updateCircleChart = async (data) => {
       
+      updateTable( data );
       
+      // Create the circles via a data join
+      let circles = circleChart.selectAll("circle.point").data(data, d => d.id)
+                                 .join(
+                                   enter => enter.append("circle").attr("class","point")
+                                                 .attr("stroke", d => d3.hsl(d.colorValue).l > 0.8 ? "#aaa" : "none")
+                                                 .attr("cx", d => xPos( d3.hsl(d.colorValue)) )
+                                                 .attr("cy", d => yPos( d3.hsl(d.colorValue)) )
+                                                 .attr("fill", "#fff")
+                                                 .attr("r",0)
+                                                 .call( enter => enter.transition()
+                                                                      .duration(1000)
+                                                                      .ease(d3.easeBackOut)
+                                                                      .attr("r", 8)
+                                                                      .attr("fill", d => d.colorValue) )
+                                                 ,
+                                   update => update.attr("fill", d => d.colorValue)
+                                                   .attr("cx", d => xPos( d3.hsl(d.colorValue)) )
+                                                   .attr("cy", d => yPos( d3.hsl(d.colorValue)) ),
+                                   exit => exit.remove()
+                                 );
       
       
     }  
@@ -209,7 +289,27 @@
     const colorTable = d3.select("table#color-table");    
     const updateTable = async (data) => {
 
-      
+      var tableRows = colorTable.selectAll("tr.row").data( data, d => d.id )
+                                .join( enter => {
+                                  
+                                  let newRows = enter.append("tr").attr("class","row");
+                                  
+                                  newRows.append("td").text( d => d.colorName );
+                                  newRows.append("td").text("\u2588").style("color", d => d.colorValue )
+                                  newRows.append("td").text( d => d.colorValue );
+                                  
+                                  // add mouseovers
+                                  
+                                  
+                                  
+                                },
+                                  update => {
+                                    // What goes here?
+                                    // Remember that update is going to contain elements
+                                    //  that look like: <tr> <td /><td /><td /> </tr>
+                                  },
+                                exit => exit.remove()
+                              )
       
       
     }
