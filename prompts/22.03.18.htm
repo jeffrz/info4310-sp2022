@@ -1,0 +1,248 @@
+<html>
+<head>
+  <title>INFO 4310 - March-7</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+  
+    .annotation {
+        fill: none;
+        stroke: #aaa;
+        stroke-width: 1px;
+      }
+    .outline {
+      fill: none;
+      stroke: #eee;
+      stroke-width: 1px;
+    }
+    .center-mark {
+      fill: #444;
+      stroke: #000;
+      stroke-width:4px;
+    }
+    
+    th {
+      padding: 10px !important;
+    }
+    
+    circle.point {
+      stroke-width: 2px;
+    }
+    circle.highlighted {
+      stroke: #000;
+    }
+    
+    #plot-container {
+        width:1000px;
+    }
+    
+    .plot-inner-container {
+      width: 610px;
+      height: 610px;
+      margin:0;
+      padding:0;
+      float: left;
+    }
+    
+    #table-container {
+      width:350px;
+      height:610px;
+      padding: 0 0 0 40px;
+      overflow: auto;
+    }
+    
+    #table-container tr td:first-child {
+      width: 170px;
+    }
+    
+    tr.highlighted {
+      font-weight: bold;
+    }
+    
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for March 18</h3>
+    <p>
+      Today we'll visualize some color data gathered using a survey tool that I have deployed to Heroku. The survey is inspired by the <a href="https://blog.xkcd.com/2010/05/03/color-survey-results/">XKCD color survey</a> conducted a long time ago. You can submit new colors <a href="http://color4310.herokuapp.com/survey">here</a>. In an ideal world you'd embed this page right into the Heroku app, but for now we'll do it in the course page.
+    </p>
+    <p>
+      Our goal will be to create automatically updating visualizations that show new colors as they come in. To do this we'll make use of async functions and d3's <a href="https://github.com/d3/d3-timer">timer library</a>.
+    </p>
+    <p>
+      Check out this <a href="https://blog.datawrapper.de/beautifulcolors/">helpful guide</a> on picking interesting colors for your charts
+    </p>
+    <p>
+      This <a href="http://jamie-wong.com/post/color/">blog post</a> is a nice, quick refresher on trichromacy and computer color spaces
+    </p>
+        
+    <h5>HTML for today:</h5>
+    
+    
+<div id="plot-container">
+  
+  <h5>Hex plot:</h5>
+  
+  <div class="plot-container">
+    <svg id="hex" width="840" height="410">
+      <path class="annotation" d="M173.20508075688772 0L346.41016151377545 100L346.41016151377545 300L173.20508075688772 400L0 300L0 100Z" transform="translate(5,5)"></path>
+      <line x1=173.205 y1=200 x2=0 y2=100 class="annotation" transform="translate(5,5)"></line>
+      <line x1=173.205 y1=200 x2=346.41 y2=100 class="annotation" transform="translate(5,5)"></line>
+      <line x1=173.205 y1=200 x2=173.205 y2=400 class="annotation" transform="translate(5,5)"></line>
+      <g id="dark" width="400" height="400" transform="translate(5,5)"> </g>
+      
+      <path class="annotation" d="M173.20508075688772 0L346.41016151377545 100L346.41016151377545 300L173.20508075688772 400L0 300L0 100Z" transform="translate(385,5)"></path>
+      <line x1=173.205 y1=200 x2=0 y2=100 class="annotation" transform="translate(385,5)"></line>
+      <line x1=173.205 y1=200 x2=346.41 y2=100 class="annotation" transform="translate(385,5)"></line>
+      <line x1=173.205 y1=200 x2=173.205 y2=400 class="annotation" transform="translate(385,5)"></line>
+      <g id="light" width="400" height="400" transform="translate(385,5)"> </g>
+    </svg>
+  </div>
+</div>
+
+
+  
+  <h5>Circular plot:</h5>
+  <div class="plot-inner-container">
+    <svg id="plot-circle" width="610" height="610" style="margin-bottom:20px" >
+      <circle class="outline" r="40" cx="300" cy="300"></circle>
+      <circle class="outline" r="300" cx="300" cy="300"></circle>
+      <g class="circle-container" width="600" height="600"> </g>
+      <circle class="center-mark" r="0" cx="300" cy="300"></circle>
+    </svg>
+  </div>
+  <div id="table-container">
+    <table id="color-table">
+      <thead><th style="width: 170px">Color name</th><th></th><th>Color code</th></thead>
+    </table>
+  </div>
+  
+    
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+    </pre>
+    
+    <script id="notes1">
+    
+    
+    // Placeholder for entire dataset in the broadest scope
+    var dataset;
+    
+    
+    // ---- Called repeatedly by d3.timer (at bottom of file) ----
+    //  This will trigger an update for all of the charts on screen
+    const updateData = async () => {
+      
+      console.log("Downloading a new file")
+      // NOTE: There have been some minor changes to app.py since last class
+      dataset = await d3.csv("https://color4310.herokuapp.com/dump_data", d3.autoType )
+      
+      // Any pre-processing?
+      
+        
+      console.log(dataset);
+      updateHexChart(dataset);
+      updateCircleChart(dataset);
+    }
+    
+    
+    // ---------------- Hexagonal chart
+    const lightHex = d3.select("g#light");
+    const darkHex = d3.select("g#dark");
+    const hexWidth = darkHex.attr("width");
+    const hexHeight = darkHex.attr("height");
+    const hexCenter = { x:173.205, y:200 };
+    const hexRadius = 200;
+    
+    // Need scales for X and Y position in either hexagon
+    
+    
+    // Hexagonal visualization
+    const updateHexChart = async (data) => {
+    
+      
+      
+      
+      
+      
+    
+    }
+    
+    
+    // ---------------- Circular chart
+    // Containers and center markers
+    const circleChart = d3.select("svg#plot-circle g.circle-container");
+    
+    // Make sure width and height are same for all canvases
+    const width = circleChart.attr("width");
+    const height = circleChart.attr("height");
+    const circleCenter = { x:width/2.0, y:height/2.0 };
+    const circleInnerRadius = 40;
+    const circleOuterRadius = Math.min(width/2.0,height/2.0);
+    
+    // ---- Create some scales for the circular color chart
+    
+                          
+    
+    // Called by updateData, updates the circular visualization on call
+    const updateCircleChart = async (data) => {
+      
+      
+      
+      
+    }  
+    
+    // Update data table with new rows and cells
+    const colorTable = d3.select("table#color-table");    
+    const updateTable = async (data) => {
+
+      
+      
+      
+    }
+    
+    
+    updateData();
+    // d3.interval( updateData, 5000 );
+    
+    
+    
+    
+    </script>
+    
+    
+    
+    
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>

@@ -40,7 +40,7 @@ class Entry(db.Model):
     
     # this function spits out an array of the data we put in the CSV file
     def getRow(self):
-        return [self.colorValue, self.colorName, self.genderIdentity, self.colorBlind, self.surveyType]
+        return [self.id, self.colorValue, self.colorName, self.genderIdentity, self.colorBlind, self.surveyType]
     
 
 
@@ -130,7 +130,7 @@ def dump():
     
     output = io.StringIO()  # this is an empty receptacle for string contents
     writer = csv.writer(output)  # we feed in the output of the writer to the receptacle
-    writer.writerow( ['colorValue','colorName','genderIdentity','colorBlind','surveyType'] )
+    writer.writerow( ['id','colorValue','colorName','genderIdentity','colorBlind','surveyType'] )
     
     # loop through all Entry rows in their table
     entries = Entry.query.all()
