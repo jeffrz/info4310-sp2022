@@ -71,53 +71,47 @@
     context.lineCap = "round";
 
     // Handle touch events for as many fingers as will fit on screen
-    
-    canvas.on("touchmove", event => { event.preventDefault(); } )
-          .on("pointerup", event => console.log("pointerup", event) )
-          .on("pointerdown", function(event) {
-            console.log("pointerdown", event)
-            
-            let id = event.pointerId;
-            let targetNode = event.target;  // equivalent to "this"
-            let color = d3.hsl(360 * Math.random(), 0.8, 0.7).hex();
-            let prevPoint = null;
-            
-            let point = d3.pointer(event, targetNode, id);
-            
-            targetNode.setPointerCapture(id);
-            
-            //   pointerup.2
-            canvas.on(`pointerup.${id} pointercancel.${id}`, function(evt) {
+    canvas.on("touchmove", event => {event.preventDefault(); }) // prevent scrolling
+      .on("pointerup", event => console.log("pointerup",event))
+      .on("pointerdown", event => {
+        console.log("pointerdown", event);
+        
+        // Every time a new pointer is put down, we need to set the canvas up to track that individual finger -- while you can make some fancy logic to do this all in one event, it's much easier to set up per-finger listeners when the finger is placed on the canvas.
+        
+        let id = event.pointerId;
+        let targetNode = event.target;
+        let prevPoint = null;
+        let point = d3.pointer(event, targetNode);
+        let color = d3.hsl(360 * Math.random(), 0.8, 0.7).hex()
+        
+        // Designate the canvas to consume all touch events from here on for this finger (even if they move beyond the canvas bounds
+        targetNode.setPointerCapture(id);
+        
+        // Make specfic events for this finger/touch
+        canvas.on(`pointerup.${id} pointercancel.${id}`, evt => {
+                if (evt.pointerId !== id) return;  // check in case we didn't get this pointer's event
+                
+                // clear out the events we added for this pointer and release the event capture
+                d3.select(targetNode).on(`.${id}`, null); 
+                targetNode.releasePointerCapture(id);
               
-              if (evt.pointerId !== id) return;  // JUST IN CASE
-              
-              d3.select(targetNode).on(`.${id}`, null);
-              targetNode.releasePointerCapture(id);
-            
-            }).on(`pointermove.${id}`, function(evt) {
-              
-              if (evt.pointerId !== id) return;  // JUST IN CASE
-              
-              prevPoint = point;
-              point = d3.pointer(evt, targetNode)
-              if (prevPoint) {
+              })
+              .on(`pointermove.${id}`, evt => {
+                if (evt.pointerId !== id) return;  // check in case we didn't get this pointer's event
+                prevPoint = point;
+                point = d3.pointer(evt, targetNode);
+                if (prevPoint) {
                   context.beginPath();
                   context.lineWidth = 2;
                   context.strokeStyle = color;
-                  context.moveTo(prevPoint[0], prevPoint[1])
-                  context.lineTo(...point);
+                  context.moveTo(prevPoint[0], prevPoint[1]);
+                  context.lineTo(...point);  // using ellipses let's us automatically unpack the array
                   context.lineCap = "round";
                   context.stroke();
-              }
-              
-              
-            });
-            
-            
-          });
-    
-    
-    
+                }
+              });
+        
+      });
     
     
     </script>
@@ -153,37 +147,37 @@
         let [t1x, t1y] = touches[1];
         
         pointerAngle = Math.atan2(t1y-t0y, t1x-t0x);
-        pointerPos = [(t1x+t0x)/2, (t1y-t0y)/2];
+        pointerPos = [(t1x+t0x)/2, (t1y+t0y)/2];
         pointerDist = Math.hypot(t1y-t0y, t1x-t0x);
         
       }
+      
     }).on("touchmove", event => {
-        event.preventDefault();
-        touches = d3.pointers(event, event.target);
+      event.preventDefault();
+      touches = d3.pointers(event, event.target);
+      
+      if (touches.length === 2) {
+        let [t0x, t0y] = touches[0];
+        let [t1x, t1y] = touches[1];
         
-        if (touches.length === 2) {
-          let [t0x, t0y] = touches[0];
-          let [t1x, t1y] = touches[1];
-          
-          newAngle = Math.atan2(t1y-t0y, t1x-t0x);
-          newPos = [(t1x+t0x)/2, (t1y-t0y)/2];
-          newDist = Math.hypot(t1y-t0y, t1x-t0x);
-          
-          angle += (newAngle - pointerAngle);
-          pos[0] += (newPos[0] - pointerPosition[0]);
-          pos[1] += (newPos[1] - pointerPosition[1]);
-          scale *= (newDist / pointerDist);
-          
-          rect.attr("transform", makeTransform() );
-          
-          pointerAngle = newAngle;
-          pointerPos = newPos;
-          pointerDist = newDist;
-          
-        }
-      });
-    
-    
+        newAngle = Math.atan2(t1y-t0y, t1x-t0x);
+        newPos = [(t1x+t0x)/2, (t1y+t0y)/2];
+        newDist = Math.hypot(t1y-t0y, t1x-t0x);
+        
+        angle += (newAngle - pointerAngle);
+        pos[0] += (newPos[0] - pointerPos[0]);
+        pos[1] += (newPos[1] - pointerPos[1]);
+        scale *= (newDist / pointerDist);
+        
+        rect.attr("transform", makeTransform() );
+        
+        pointerAngle = newAngle;
+        pointerPos = newPos;
+        pointerDist = newDist;
+        
+      }
+      
+    })
     
     
     </script>
