@@ -1,0 +1,129 @@
+<html>
+<head>
+  <title>INFO 4310 - March-21</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+  
+  
+  
+    
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for March 21</h3>
+    <p>
+      Today we will work with multitouch displays and learn some patterns for how they differ from mouse interactions. Keep in mind that in default form the touch display will mimic a mouse, and sometimes even send events that simulate a mouse wheel if you pinch. You only need to explicitly accommodate touch if you want to handle multiple touches or you hit an edge case where that simulation falls short.
+    </p>
+    <p>
+      This lecture is going to walk through two d3 example cases taken from the d3 docs <a href="https://observablehq.com/@d3/multitouch">[1]</a> <a href="https://observablehq.com/@fil/pointer-events">[2]</a>
+    </p>
+    <p>
+      If you want to learn a bit more about gestural interactions, <a href="http://depts.washington.edu/acelab/proj/dollar/index.html">$1 gesture recognizers</a> are a decent way to start.
+    </p>
+        
+    <h5>HTML for today:</h5>
+      
+    
+    <h5>Multitouch sketch:</h5>
+    <canvas id="plot" width="700" height="700" style="margin-bottom:20px" >
+    </canvas>
+    
+    
+    <h5>Move and rotate:</h5>
+    <svg id="demo" width="500" height="500">
+      <rect id="square" x="-50" y="-50" width="100" height="100" transform="translate(250,250)" fill="#ddd" stroke="#777"></rect>
+    </svg>
+    
+  
+    
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+      <code id="display2" class="hljs javascript">
+      </code>
+    </pre>
+    
+    <script id="notes1">
+    
+    // We will start with multitouch drawing on a canvas
+    //  See https://observablehq.com/@fil/pointer-events-svg for a very clever way to use GeoJSON to do this in SVG
+    var canvas = d3.select('#plot')
+		var context = canvas.node().getContext('2d');
+    let width = canvas.attr("width");
+    let height = canvas.attr("height");
+    context.fillStyle = '#ddd';
+		context.fillRect(0, 0, width, height);
+    context.fillStyle = '#ddd';
+    context.lineWidth = 2;
+    context.lineCap = "round";
+
+    // Handle touch events for as many fingers as will fit on screen
+    
+    
+    
+    
+    </script>
+    
+    
+    <script id="notes2">
+    
+    // Now, let's do something with a two-finger gesture
+    let svg = d3.select("#demo");
+    let rect = d3.select("#square");
+    
+    // Keep track of where the square is at
+    var angle = 0;
+    var pos = [250,250];
+    var scale = 1;
+    
+    function makeTransform() {
+        return `translate(${pos[0]},${pos[1]}) scale(${scale}) rotate(${angle*(180/Math.PI)})`;
+    }
+    rect.attr("transform", makeTransform() );
+    
+    // Starting status of gesture
+    var pointerAngle = 0;
+    var pointerPos = 0;
+    var pointerDist = 0;
+    
+    
+    
+    
+    
+    </script>
+    
+    
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      document.getElementById("display2").innerHTML = sanitize( document.getElementById("notes2").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>
