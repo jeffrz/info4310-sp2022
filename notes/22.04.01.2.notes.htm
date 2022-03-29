@@ -1,0 +1,652 @@
+<html>
+<head>
+  <title>INFO 4310 - April-1</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+  
+    .outline {
+      fill: none;
+      stroke: #ccc;
+      stroke-width: 1px;
+    }
+    .center-mark {
+      fill: #444;
+      stroke: #000;
+      stroke-width:4px;
+    }
+    
+    th {
+      padding: 10px !important;
+    }
+    
+    circle.point {
+      stroke-width: 2px;
+    }
+    circle.highlighted {
+      stroke: #000;
+    }
+    
+    #plot-container {
+        width:1000px;
+        height:610px;
+    }
+    
+    #plot-container div {
+      float:left;
+    }
+    
+    #plot-swoop-container {
+      width: 610px;
+      height:610px;
+      margin:0;
+      padding:0;
+    }
+    
+    #plot-swoop-table-container {
+      width:350px;
+      height:610px;
+      padding: 0 0 0 40px;
+      overflow: auto;
+    }
+    
+    #plot-swoop-table-container tr td:first-child {
+      width: 170px;
+    }
+    
+    tr.highlighted {
+      font-weight: bold;
+    }
+    
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for April 1</h3>
+    <p>At various times during this lecture you may have to add additional points of data using the <a href="https://color4310.herokuapp.com/survey">survey</a>.</p>
+    <p>
+      Today we will add some different animations to our color chart from a couple of weeks ago. Our goal is not to make the most perfect, discernable transitions. Instead, we will work to make the visualization more evocative and engaging by applying some of the principles we discussed on Wednesday. As we also discussed, there are always trade-offs with animation.
+    </p>
+    <p>
+      In this lecture I use some examples from Nadieh Bremer (<a href="https://www.visualcinnamon.com/blog/">blog</a>, <a href="https://bl.ocks.org/nbremer">blocks</a>) for showing motion and applying filters in very clever ways. I recommend you check out some of the examples on her bl.ocks index. 
+    </p>
+    <h5>HTML for today:</h5>
+    
+    <h5>See file 1 for original motion demo</h5>
+    
+    <h5>Squeeze/stretch transforms</h5>
+    <p><button onclick="updateStretchChart()">Update chart</button></p>
+    <svg id="plot-stretch" width="610" height="610" style="margin-bottom:20px" >
+      <circle class="outline" r="40" cx="300" cy="300"></circle>
+      <circle class="outline" r="300" cx="300" cy="300"></circle>
+      <g class="circle-container" width="600" height="600"> </g>
+      <circle class="center-mark" r="0" cx="300" cy="300"></circle>
+    </svg>
+    
+    <h5>Adding motion blur</h5>
+    <p><button onclick="updateBlurChart()">Update chart</button></p>
+    <svg id="plot-blur" width="610" height="610" style="margin-bottom:20px" >
+      <circle class="outline" r="40" cx="300" cy="300"></circle>
+      <circle class="outline" r="300" cx="300" cy="300"></circle>
+      <g class="circle-container" width="600" height="600"> </g>
+      <circle class="center-mark" r="0" cx="300" cy="300"></circle>
+    </svg>
+    
+    <h5>Spinning around the center</h5>
+    <p><button onclick="updateSpinChart()">Update chart</button></p>
+    <svg id="plot-spin" width="610" height="610" style="margin-bottom:20px" >
+      <circle class="outline" r="40" cx="300" cy="300"></circle>
+      <circle class="outline" r="300" cx="300" cy="300"></circle>
+      <g class="circle-container" width="600" height="600"> </g>
+      <circle class="center-mark" r="0" cx="300" cy="300"></circle>
+    </svg>
+  
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+    </pre>
+    
+    <script id="notes1">
+    
+    
+    // Containers and center markers
+    const circleBlur = d3.select("svg#plot-blur g.circle-container");
+    const circleBlurCenter = d3.select("svg#plot-blur .center-mark");
+    const circleStretch = d3.select("svg#plot-stretch g.circle-container");
+    const circleStretchCenter = d3.select("svg#plot-stretch .center-mark");
+    const circleSpin = d3.select("svg#plot-spin g.circle-container");
+    const circleSpinCenter = d3.select("svg#plot-spin .center-mark");
+    
+    // Make sure width and height are same for all canvases
+    const width = circleBlur.attr("width");
+    const height = circleBlur.attr("height");
+    const circleCenter = { x:width/2.0, y:height/2.0 };
+    const circleInnerRadius = 40;
+    const circleOuterRadius = Math.min(width/2.0,height/2.0);
+    
+    // Create some scales for the circular color chart
+    // **We will re-use these for all of the animated charts on screen**
+    // A scale for center to outside - takes a number as input
+    let valueScale = d3.scaleLinear().domain([0,1]).range([circleInnerRadius+14,circleOuterRadius-14]);
+    // A scale for position on the circle in x and y - **take an hsl color as input**
+    let xPos = d => circleCenter.x + valueScale(d.l) * Math.cos( (d.h-90)*Math.PI/180.0 );
+    let yPos = d => circleCenter.y + valueScale(d.l) * Math.sin( (d.h-90)*Math.PI/180.0 );
+    
+    
+    
+    
+    // ---- Called repeatedly by d3.timer (at bottom of file) ----
+    //  This will trigger an update for all of the charts on screen
+    //  Keep all datasets in global scope
+    var prevDatasetLen = 0;
+    var dataset;
+    var datasetByName;
+    var datasetByLayer;
+    const updateData = async () => {
+      
+      console.log("----- Downloading a new file")
+      let dataset = await d3.csv("https://color4310.herokuapp.com/dump_data", d3.autoType )
+      
+      // Any pre-processing?
+      dataset.forEach( (d, i) => {
+        d.colorName = d.colorName.toLowerCase();
+        
+        // NEW PRE-PROCESSING!
+        // To make life a bit easier later, we'll pre-compute the angle between the center of the circle 
+        //   where the point starts and the place where it ends up
+        // We will need this angle later when we're squishing the point using a transform
+        let xstart = circleCenter.x;  
+        let xend = xPos( d3.hsl(d.colorValue));
+        let ystart = circleCenter.y;
+        let yend = yPos( d3.hsl(d.colorValue));
+        d.angle = Math.atan2(yend-ystart, xend-xstart)*(180/Math.PI);
+      });
+        
+      // New sort -- order by hue
+      dataset.sort( (a, b) => d3.ascending(d3.hsl(a.colorValue).h, d3.hsl(b.colorValue).h) );
+      
+      // Old sort -- alphabetic by name
+      //  (we'll keep it as a copy to use in some of the demos)
+      datasetByName = dataset.slice();
+      datasetByName.sort( (a, b) => d3.ascending(a.colorName, b.colorName) );
+      
+      // Newest sort -- sorted in a custom, layered way; by hue but in 3 separate luminosity chunks
+      datasetByLayer = dataset.slice();
+      datasetByLayer.sort( (a, b) => {
+        let ac = d3.hsl(a.colorValue);
+        let bc = d3.hsl(b.colorValue);
+        let acL = Math.floor(ac.l / 0.33); // divide into 0,1,2
+        let bcL = Math.floor(bc.l / 0.33); // divide into 0,1,2
+          if(acL > bcL) { return -1; }
+          else if(acL < bcL) { return 1; }
+          else { return ac.h - bc.h; } // if in same layer, then sort by hue
+      } );
+      
+      
+      // Check for new data
+      let newDataFound = prevDatasetLen < dataset.length;
+      prevDatasetLen = dataset.length;
+      
+      return newDataFound;
+        
+    }
+    
+    
+    
+    
+    
+    
+    
+    // Scales for animations:
+    const circleSpeed = 50; // pixels per second
+    const delaySpacing = 60; // time between circle launches
+    // Finally, another function to figure out how long it *should* take for a circle to travel, given it moves at circleSpeed
+    let distanceTraveled = d => Math.sqrt(Math.pow(valueScale(d.l) * Math.cos( (d.h-90)*Math.PI/180.0 ), 2) +
+                                          Math.pow(valueScale(d.l) * Math.sin( (d.h-90)*Math.PI/180.0 ), 2) );
+    let constantSpeedDuration = d => Math.floor( (distanceTraveled(d) / circleSpeed ) * 1000 );                                
+    
+    
+    
+    
+    
+    
+    // *** This update function will add motion blur
+    //  Look immediately below and in the commented sections in ENTER for the changes
+    const circleSpeedFaster = 120; // pixels per second
+    let constantSpeedDurationFaster = d => Math.floor( (distanceTraveled(d) / circleSpeedFaster ) * 1000 );  
+              
+    const updateStretchChart = async () => {
+      
+      // First update the dataset
+      let newDataIncoming = await updateData();
+      
+      
+      var activeStretchTransitions = 0;
+      var currentStretchDelay = 0;
+      
+      if (true) {  // (newDataIncoming) {
+        console.log("found new data, opening circle");
+        await circleStretchCenter.transition()
+                               .delay(1000)
+                               .duration(1000)
+                               .ease(d3.easeBackOut)
+                               .attr("r", 24)
+                               .end();
+        console.log("done");
+        
+      }
+      
+      let circles = circleStretch.selectAll("circle.point").data(datasetByName, d => d.id)
+                                 .join(
+                                   enter => enter.append("circle").attr("class","point")
+                                                 .attr("fill", d => "#000")
+                                                 .attr("stroke", d => d3.hsl(d.colorValue).l > 0.8 ? "#aaa" : "none")
+                                                 .attr("r",8)
+                                                 // Going to do this with transforms instead
+                                                 .attr("cx", 0 )
+                                                 .attr("cy", 0 )
+                                                 .attr("transform", d => `translate(${circleCenter.x},${circleCenter.y}) rotate(${d.angle}) scale(1,1)`)
+                                                 .call( enter => enter.transition()
+                                                                      .delay( (d,i) => {currentStretchDelay += delaySpacing; 
+                                                                                        return currentStretchDelay})
+                                                                      .duration(d => constantSpeedDurationFaster(d3.hsl(d.colorValue)) )
+                                                                      .ease(d3.easeExpOut)
+                                                                      .attr("fill", d => d.colorValue)
+                                                                      
+                                                                      // Adjust the animation terms so that we can make points blur
+                                                                      // To accomplish this, we create our own *custom* tweening function
+                                                                      // Tweening is another word for adding the in-between frames in the animation
+                                                                      // In this project, we want the in-betweens to add stretch as the point moves fast
+                                                                      
+                                                                      //  Custom tween function
+                                                                      //    Two parameters - a name, function that takes in time T and does changes
+                                                                      //  Here we have a factory that returns a function because we want to *customize our tween function on runtime* to this specific circle
+                                                                      //  So whenever this animation is triggered, the factory makes and returns a function that the .transition() then runs as it animates. As the animation goes, it feeds in new T values
+                                                                      //  (note that the T is usually 0-1, but some easing functions go above 1 and below 0)
+                                                                      .tween("move-stretch", function(d) {
+                                                                      
+                                                                        // Set up interpolators to blend between values during animation
+                                                                        //   Note, we are going to do this with
+                                                                        
+                                                                        let xend = xPos( d3.hsl(d.colorValue));
+                                                                        let yend = yPos( d3.hsl(d.colorValue));
+                                                                        let startTransform = this.getAttribute("transform");
+                                                                        let endTransform = `translate(${xend},${yend}) rotate(${d.angle})`
+                                                                        let moveInterpolator = d3.interpolateString(startTransform, endTransform);
+                                                                        
+                                                                        let motionStretchStart = " scale(1,1)" // stretch for x and y axis
+                                                                        let motionStretchEnd = " scale(1.4,0.5)" // since we rotated, we just stretch along X
+                                                                        let squeezeInterpolator = d3.interpolateString(motionStretchStart,motionStretchEnd);
+                                                                        let expandInterpolator = d3.interpolateString(motionStretchEnd,motionStretchStart);
+                                                                        
+                                                                        // now generator the tweening function for .tween to use
+                                                                        return function(t) {
+                                                                          let transform = moveInterpolator(t);
+                                                                          if (t <= 0.5) {
+                                                                            transform += squeezeInterpolator(t*2);
+                                                                          }
+                                                                          else {
+                                                                            transform += expandInterpolator((t-0.5)*2); 
+                                                                          }
+                                                                          this.setAttribute("transform",transform);
+                                                                        }
+                                                                      })
+                                                                      .on("start", function(d, i, nodes) {
+                                                                        activeStretchTransitions++;
+                                                                      })
+                                                                      .on("end", function(d, i, nodes) {
+                                                                        currentStretchDelay -= delaySpacing;
+                                                                        --activeStretchTransitions;
+                                                                        if (activeStretchTransitions === 0) {
+                                                                          circleStretchCenter.transition()
+                                                                                           .duration(500)
+                                                                                           .attr("r", 0)
+                                                                        }
+                                                                      })
+                                                        )
+                                                 ,
+                                   update => update.filter( function() { return d3.active(this) !== null } )
+                                                   .attr("fill", d => d.colorValue)
+                                                   .attr("transform", d => `translate(${xPos( d3.hsl(d.colorValue))},${yPos( d3.hsl(d.colorValue))}) rotate(${d.angle}) scale(1,1)`),
+                                   exit => exit.remove()
+                                 )
+      
+    } 
+    
+    
+    // This update function will add motion blur
+    //  Look immediately below and in the commented sections in ENTER for the changes
+    
+    let blurDefs = d3.select("svg#plot-blur").append("defs").lower();
+    
+    const updateBlurChart = async () => {
+      
+      // First update the dataset
+      let newDataIncoming = await updateData();
+      
+      
+      // Create a defs element to hold the filters for blurring points
+      // This will give us a gaussian blur, which uses a gaussian kernel to blur
+      //  (Technically, this works by sliding a window along the image. Its value is calculated by adding up the surrounding pixels, weighted by the gaussian kernel [stuff in the middle more important than stuff on the outside]. This gives us a few levers to turn to configure the filter. In particular, we can adjust the radius of the kernel as well as its variance (sigma). Here we use variance as a way to "expand" the blur in one direction and not the other, creating a motion effect. Thanks for Nadieh Bremer for this clever approach!)
+      blurDefs.selectAll(".motionFilter").data(datasetByName, d => d.id)
+              .join( enter => enter.append("filter").attr("class","motionFilter")
+                                   .attr("id", d => `filter-${d.id}`) // we need to link each filter to a circle, so we have to create an ID here
+                                   .attr("width", "300%").attr("x","-100%") // avoid clipping when the blur is large
+                                   .attr("height", "300%").attr("y","-100%")
+                                   .append("feGaussianBlur").attr("class","blurElement")
+                                   .attr("in","SourceGraphic")
+                                   .attr("stdDeviation", "0 0"),
+                     update => update.attr("id", d => `filter-${d.id}`),
+                     exit => exit.remove() )
+                              
+      // To make life a bit easier later, we'll link the filter elements to their data element
+      // We will also use the pre-computed angle from the stretch case
+      blurDefs.selectAll(".motionFilter").each( function(d) {
+        d.blurFilter = d3.select(this);
+      });
+      
+      var activeBlurTransitions = 0;
+      var currentBlurDelay = 0;
+      
+      if (true) {  // (newDataIncoming) {
+        console.log("found new data, opening circle");
+        await circleBlurCenter.transition()
+                               .delay(1000)
+                               .duration(1000)
+                               .ease(d3.easeBackOut)
+                               .attr("r", 24)
+                               .end();
+        console.log("done");
+        
+      }
+      
+      let circles = circleBlur.selectAll("circle.point").data(datasetByName, d => d.id)
+                                 .join(
+                                   enter => enter.append("circle").attr("class","point")
+                                                 .attr("fill", d => "#000")
+                                                 .attr("stroke", d => d3.hsl(d.colorValue).l > 0.8 ? "#aaa" : "none")
+                                                 .attr("r",8)
+                                                 // Going to do this with transforms instead
+                                                 .attr("cx", 0 )
+                                                 .attr("cy", 0 )
+                                                 .attr("transform", d => `translate(${circleCenter.x},${circleCenter.y}) rotate(${d.angle})`)
+                                                 // You don't want this here -- too many circles to filter at once
+                                                 // .attr("filter", d => `url(#filter-${d.id})` ) // Link the circle to its filter
+                                                 .call( enter => enter.transition()
+                                                                      .delay( (d,i) => {currentBlurDelay += delaySpacing; 
+                                                                                        return currentBlurDelay})
+                                                                      .duration(d => constantSpeedDurationFaster(d3.hsl(d.colorValue)) )
+                                                                      .ease(d3.easeExpOut)
+                                                                      .attr("fill", d => d.colorValue)
+                                                                      
+                                                                      // Adjust the animation terms so that we can make points blur
+                                                                      // To accomplish this, we again create our own *custom* tweening function
+                                                                      .tween("move-blur", function(d) {
+                                                                      
+                                                                        // Set up interpolators to blend between values during animation
+                                                                        //   Note, we are going to do this with
+                                                                        
+                                                                        let xend = xPos( d3.hsl(d.colorValue));
+                                                                        let yend = yPos( d3.hsl(d.colorValue));
+                                                                        let startTransform = this.getAttribute("transform");
+                                                                        let endTransform = `translate(${xend},${yend}) rotate(${d.angle})`
+                                                                        let moveInterpolator = d3.interpolateString(startTransform, endTransform);
+                                                                        
+                                                                        let motionStdStart = "0.1 0" // blur for x and y axis
+                                                                        let motionStdEnd = "5 0" // since we rotated, we just blur along X
+                                                                        let accelInterpolator = d3.interpolateString(motionStdStart,motionStdEnd);
+                                                                        let decelInterpolator = d3.interpolateString(motionStdEnd,motionStdStart);
+                                                                        
+                                                                        // now generator the tweening function for .tween to use
+                                                                        return function(t) {
+                                                                          this.setAttribute("transform", moveInterpolator(t));
+                                                                          if (t <= 0.5) {
+                                                                              d.blurFilter.select(".blurElement")
+                                                                                          .attr("stdDeviation", accelInterpolator(t*2));
+                                                                          }
+                                                                          else {
+                                                                              d.blurFilter.select(".blurElement")
+                                                                                          .attr("stdDeviation", decelInterpolator((t-0.5)*2));  
+                                                                          }
+                                                                        }
+                                                                      })
+                                                                      
+                                                                      // Animation events
+                                                                      .on("start", function(d, i, nodes) {
+                                                                        // Link filter at start of animation
+                                                                        d3.select(this).attr("filter", d => `url(#filter-${d.id})` )
+                                                                        activeBlurTransitions++;
+                                                                      })
+                                                                      .on("end", function(d, i, nodes) {
+                                                                        // Unlink filter
+                                                                        d3.select(this).attr("filter", null )
+                                                                        
+                                                                        currentBlurDelay -= delaySpacing;
+                                                                        --activeBlurTransitions;
+                                                                        if (activeBlurTransitions === 0) {
+                                                                          circleBlurCenter.transition()
+                                                                                           .duration(500)
+                                                                                           .attr("r", 0)
+                                                                        }
+                                                                      })
+                                                        )
+                                                 ,
+                                   update => update.filter( function() { return d3.active(this) !== null } )
+                                                   .attr("fill", d => d.colorValue)
+                                                   .attr("transform", d => `translate(${xPos( d3.hsl(d.colorValue))},${yPos( d3.hsl(d.colorValue))}) rotate(${d.angle})`),
+                                   exit => exit.remove()
+                                 )
+      
+    } 
+    
+    // *** This update function will add bouncy mouseovers and some other random things I wanted to try
+    //  Look immediately below and in the commented sections in ENTER for the changes
+    const delaySpacingFaster = 40; // time between circle launches
+    
+    // Make a placeholder for some virtual paths for circles to follow
+    let paths = d3.select("#plot-spin").append("g").attr("fill","none").attr("stroke","black").attr("display","none");
+    
+    // Some modified scales to use for the twisty paths
+    
+    let xPosByAngle = (angle, rad) => circleCenter.x + valueScale(rad) * Math.cos( (angle)*Math.PI/180.0 );
+    let yPosByAngle = (angle, rad) => circleCenter.y + valueScale(rad) * Math.sin( (angle)*Math.PI/180.0 );
+    
+    const updateSpinChart = async () => {
+                              
+      
+      // First update the dataset
+      let newDataIncoming = await updateData();                        
+                        
+      
+      var activeSpinTransitions = 0;
+      var currentSpinDelay = 0;
+      
+      if (true) {  // (newDataIncoming) {
+        console.log("found new data, opening circle");
+        await circleSpinCenter.transition()
+                               .delay(1000)
+                               .duration(1000)
+                               .ease(d3.easeBackOut)
+                               .attr("r", 24)
+                               .end();
+        console.log("done");
+        
+      }
+      
+      let circles = circleSpin.selectAll("circle.point").data(datasetByLayer, d => d.id)
+                                 .join(
+                                   enter => enter.append("circle").attr("class","point")
+                                                 .attr("fill", d => "#000")
+                                                 .attr("stroke", d => d3.hsl(d.colorValue).l > 0.8 ? "#aaa" : "none")
+                                                 .attr("r",8)
+                                                 .attr("cx", 0 )
+                                                 .attr("cy", 0 )
+                                                 .attr("transform", d => `translate(${circleCenter.x},${circleCenter.y}) rotate(${d.angle}) scale(1,1)`)
+                                                 .call( enter => enter.transition()
+                                                                      .delay( (d,i) => {currentSpinDelay += delaySpacingFaster; 
+                                                                                        return currentSpinDelay})
+                                                                      .duration(d => constantSpeedDuration(d3.hsl(d.colorValue)) )
+                                                                      .ease(d3.easeExpOut)
+                                                                      .attr("fill", d => d.colorValue)
+                                                                      .tween("move-twirl", function(d) {
+                                                                        
+                                                                        // make a path for the circle to follow that's kinda interesting
+                                                                        // this is a bit of a hack to do it -- in an ideal world you'd want to define a path mathematically for your interpolator
+                                                                        // but for our purposes making an actual SVG path and then using the builtin SVG functions is a lot easier
+                                                                        // we want the paths to twirl around a little bit, so we will play with the angle to make some extra points and then use a B-spline to smooth out a twisty path
+                                                                        // (note, in the future you might try CSS motion paths https://drafts.fxtf.org/motion-1/ )
+                                                                        
+                                                                        let verts = [[circleCenter.x, circleCenter.y]];
+                                                                        verts.push( [xPosByAngle( d.angle+180, d3.hsl(d.colorValue).l * 0.3 ),
+                                                                                     yPosByAngle( d.angle+180, d3.hsl(d.colorValue).l * 0.3 )] );
+                                                                        verts.push( [xPosByAngle( d.angle+120, d3.hsl(d.colorValue).l * 0.5 ),
+                                                                                     yPosByAngle( d.angle+120, d3.hsl(d.colorValue).l * 0.5 )] );
+                                                                        verts.push( [xPosByAngle( d.angle+30, d3.hsl(d.colorValue).l * 0.8 ),
+                                                                                     yPosByAngle( d.angle+30, d3.hsl(d.colorValue).l * 0.8 )] );
+                                                                        verts.push( [xPos(d3.hsl(d.colorValue)), yPos(d3.hsl(d.colorValue))] );
+                                                                        
+                                                                        // (did you know you can actually give the X and Y accessors as two starting params?)
+                                                                        var lineGen = d3.line(d => d[0], d => d[1])
+                                                                                        .curve(d3.curveBasis);
+                                                                        
+                                                                        // make the path, even if the user is not going to see it
+                                                                        // we store it in D so that we can delete it later
+                                                                        let path = paths.append("path").datum(verts).attr("d",lineGen).node();
+                                                                        d.path = path;
+                                                                        
+                                                                        // there are two SVG functions we can use in our tween now to make the point follow the path we just made
+                                                                        // -first, path.getTotalLength() gives us the length of the path in float
+                                                                        // -second, path.getPointAtLength(float) gives us a {x,y} some amount down the path
+                                                                        // unfortunately, there is no d3 interpolator for this, so we do it manually
+                                                                        // we also need to estimate the tangent line angle so our point can stretch along with the path - I wrote a helper function later this file for it
+                                                                        
+                                                                        let dist = path.getTotalLength();
+                                                                        
+                                                                        let motionStretchStart = " scale(1,1)" // stretch for x and y axis
+                                                                        let motionStretchEnd = " scale(1.2,0.6)" // since we rotated, we just stretch along X
+                                                                        // This time we'll start things off stretched and then expand
+                                                                        let expandInterpolator = d3.interpolateString(motionStretchEnd,motionStretchStart);
+                                                                        
+                                                                        // now generator the tweening function for .tween to use
+                                                                        return function(t) {
+                                                                          
+                                                                          let pos = path.getPointAtLength(t * dist);
+                                                                          
+                                                                          let angle = approxTangentAngleAtDist(path, t*dist, dist);
+                                                                          
+                                                                          let scale = "";
+                                                                          if (t <= 0.5) {
+                                                                            scale = motionStretchEnd;
+                                                                          }
+                                                                          else {
+                                                                            scale = expandInterpolator((t-0.5)*2); 
+                                                                          }
+                                                                          this.setAttribute("transform",`translate(${pos.x},${pos.y}) rotate(${angle}) ${scale}`);
+                                                                        }
+                                                                      })
+                                                                      
+                                                                      // Animation events
+                                                                      .on("start", function(d, i, nodes) {
+                                                                        activeSpinTransitions++;
+                                                                      })
+                                                                      .on("end", function(d, i, nodes) {
+                                                                        currentSpinDelay -= delaySpacingFaster;
+                                                                        --activeSpinTransitions;
+                                                                        // clean up path
+                                                                        d3.select(d.path).remove();
+                                                                        this.setAttribute("transform",`translate(${xPos( d3.hsl(d.colorValue))},${yPos( d3.hsl(d.colorValue))}) rotate(0)`)
+                                                                        if (activeSpinTransitions === 0) {
+                                                                          circleSpinCenter.transition()
+                                                                                           .duration(500)
+                                                                                           .attr("r", 0)
+                                                                        }
+                                                                        
+                                                                        // Add jiggly mouseover!
+                                                                        d3.select(this)
+                                                                          .on("mouseover", function(event, d) {
+                                                                            circleSpin.selectAll("circle.point")
+                                                                                        .filter( function(cd) { return (cd.colorName === d.colorName) &&
+                                                                                                                       (d3.active(this) === null) } )
+                                                                                        .raise()
+                                                                                        .transition().duration(50)
+                                                                                        .attr("cx",-4)
+                                                                                        .transition().duration(50)
+                                                                                        .attr("cx",4)
+                                                                                        .transition().duration(50)
+                                                                                        .attr("cx",-2)
+                                                                                        .transition().duration(50)
+                                                                                        .attr("cx",2)
+                                                                                        .transition().duration(50)
+                                                                                        .attr("cx",0)
+                                                                          })
+                                                                      })
+                                                        )
+                                                 ,
+                                   update => update.filter( function() { return d3.active(this) !== null } )
+                                                   .attr("fill", d => d.colorValue)
+                                                   .attr("transform", d => `translate(${xPos( d3.hsl(d.colorValue))},${yPos( d3.hsl(d.colorValue))}) rotate(0) scale(1,1)`),
+                                   exit => exit.remove()
+                                 )
+      
+    } 
+    
+    
+    // This function does a simple approximation of the tangent angle at a point in a path
+    function approxTangentAngleAtDist(path, distance, totalDistance) {
+      
+      // the function breaks at the ends of the line, so we just scoot in a bit for negligable error
+      if (distance === 0) {
+        distance = 1;
+      }
+      else if (distance === totalDistance) {
+        distance = totalDistance-1;
+      }
+      
+      let p1 = path.getPointAtLength(distance-1);
+      let p2 = path.getPointAtLength(distance+1);
+      return Math.atan2(p1.y-p2.y, p1.x-p2.x)*(180/Math.PI);
+      
+    }
+    
+    
+    
+    updateData();
+    
+    
+    
+    </script>
+    
+    
+    
+    
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>
