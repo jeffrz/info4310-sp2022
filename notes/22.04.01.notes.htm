@@ -1,0 +1,343 @@
+<html>
+<head>
+  <title>INFO 4310 - April-1</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+  
+    .outline {
+      fill: none;
+      stroke: #ccc;
+      stroke-width: 1px;
+    }
+    .center-mark {
+      fill: #444;
+      stroke: #000;
+      stroke-width:4px;
+    }
+    
+    th {
+      padding: 10px !important;
+    }
+    
+    circle.point {
+      stroke-width: 2px;
+    }
+    circle.highlighted {
+      stroke: #000;
+    }
+    
+    #plot-container {
+        width:1000px;
+        height:610px;
+    }
+    
+    #plot-container div {
+      float:left;
+    }
+    
+    #plot-swoop-container {
+      width: 610px;
+      height:610px;
+      margin:0;
+      padding:0;
+    }
+    
+    #plot-swoop-table-container {
+      width:350px;
+      height:610px;
+      padding: 0 0 0 40px;
+      overflow: auto;
+    }
+    
+    #plot-swoop-table-container tr td:first-child {
+      width: 170px;
+    }
+    
+    tr.highlighted {
+      font-weight: bold;
+    }
+    
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for April 1</h3>
+    <p>At various times during this lecture you may have to add additional points of data using the <a href="https://color4310.herokuapp.com/survey">survey</a>.</p>
+    <p>
+      Today we will add some different animations to our color chart from a couple of weeks ago. Our goal is not to make the most perfect, discernable transitions. Instead, we will work to make the visualization more evocative and engaging by applying some of the principles we discussed on Wednesday. As we also discussed, there are always trade-offs with animation.
+    </p>
+    <p>
+      In this lecture I use some examples from Nadieh Bremer (<a href="https://www.visualcinnamon.com/blog/">blog</a>, <a href="https://bl.ocks.org/nbremer">blocks</a>) for showing motion and applying filters in very clever ways. I recommend you check out some of the examples on her bl.ocks index. 
+    </p>
+    <h5>HTML for today:</h5>
+    
+    
+    <h5>Swoop in from the middle</h5>
+    <div id="plot-container">
+      <div id="plot-swoop-container">
+        <svg id="plot-swoop" width="610" height="610" style="margin-bottom:20px" >
+          <circle class="outline" r="40" cx="300" cy="300"></circle>
+          <circle class="outline" r="300" cx="300" cy="300"></circle>
+          <g class="circle-container" width="600" height="600" transform="translate(5,5)"> </g>
+          <circle class="center-mark" r="0" cx="300" cy="300"></circle>
+        </svg>
+      </div>
+      <div id="plot-swoop-table-container">
+        <table id="plot-swoop-table">
+          <thead><th style="width: 170px">Color name</th><th></th><th>Color code</th></thead>
+        </table>
+      </div>
+    </div>
+    
+    <h5>See file 2 for more motion demos</h5>
+  
+  
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+    </pre>
+    
+    <script id="notes1">
+    
+    
+    // Placeholder for entire dataset in the broadest scope
+    var dataset;
+    var prevDatasetLen = 0;
+    
+    
+    // ---- Called repeatedly by d3.timer (at bottom of file) ----
+    //  This will trigger an update for all of the charts on screen
+    const updateData = async () => {
+      
+      console.log("----- Downloading a new file")
+      let dataset = await d3.csv("https://color4310.herokuapp.com/dump_data", d3.autoType )
+      
+      // Any pre-processing?
+      dataset.forEach( (d, i) => {
+        d.colorName = d.colorName.toLowerCase();
+      });
+        
+      // New sort -- order by hue
+      dataset.sort( (a, b) => d3.ascending(d3.hsl(a.colorValue).h, d3.hsl(b.colorValue).h) );
+      
+      // Old sort -- alphabetic by name
+      //  (we'll keep it as a copy to use in some of the demos)
+      let datasetByName = dataset.slice();
+      datasetByName.sort( (a, b) => d3.ascending(a.colorName, b.colorName) );
+      
+      // Check for new data
+      let newDataFound = prevDatasetLen < dataset.length;
+      prevDatasetLen = dataset.length;
+      
+      // Call update functions
+     updateSwoopChart(dataset, newDataFound);
+        
+    }
+    
+    // Containers and center markers
+    const circleSwoop = d3.select("svg#plot-swoop g.circle-container");
+    const circleSwoopCenter = d3.select("svg#plot-swoop .center-mark");
+    
+    // Make sure width and height are same for all canvases
+    const width = circleSwoop.attr("width");
+    const height = circleSwoop.attr("height");
+    const circleCenter = { x:width/2.0, y:height/2.0 };
+    const circleInnerRadius = 40;
+    const circleOuterRadius = Math.min(width/2.0,height/2.0);
+    
+    // Create some scales for the circular color chart
+    // **We will re-use these for all of the animated charts on screen**
+    // A scale for center to outside - takes a number as input
+    let valueScale = d3.scaleLinear().domain([0,1]).range([circleInnerRadius+14,circleOuterRadius-14]);
+    // A scale for position on the circle in x and y - **take an hsl color as input**
+    let xPos = d => circleCenter.x + valueScale(d.l) * Math.cos( (d.h-90)*Math.PI/180.0 );
+    let yPos = d => circleCenter.y + valueScale(d.l) * Math.sin( (d.h-90)*Math.PI/180.0 );
+    
+    // Scales for animations:
+    const circleSpeed = 50; // pixels per second
+    const delaySpacing = 60; // time between circle launches
+    // Finally, another function to figure out how long it *should* take for a circle to travel, given it moves at circleSpeed
+    let distanceTraveled = d => Math.sqrt(Math.pow(valueScale(d.l) * Math.cos( (d.h-90)*Math.PI/180.0 ), 2) +
+                                          Math.pow(valueScale(d.l) * Math.sin( (d.h-90)*Math.PI/180.0 ), 2) );
+    let constantSpeedDuration = d => Math.floor( (distanceTraveled(d) / circleSpeed ) * 1000 );                                
+    
+    // Store some values for improving transitions
+    //  There may be UNTESTED race conditions during simultaneous animations!
+    var activeSwoopTransitions = 0;
+    var currentSwoopDelay = 0;
+    
+    
+    const updateSwoopChart = async (data, newDataIncoming) => {
+      
+      // Populate the table
+      updateSwoopTable( data, true )
+      
+      
+      // Later on, we animated the center as well
+      //  Calling .start() or .end() on a transition returns a *promise*
+      //  With that promise you can use await in an async function to wait until the animation finishes
+      //  This isn't usually recommended because it blocks, but can work in this contexts
+      if (newDataIncoming) {
+        console.log("found new data, opening circle");
+        await circleSwoopCenter.transition()
+                               .delay(2000)
+                               .duration(1000)
+                               .ease(d3.easeBackOut)
+                               .attr("r", 24)
+                               .end();
+        console.log("done opening circle");
+      }
+      
+      // Modifying the basic data join from the March 18 lecture...
+      console.log("beginning data join");
+      let circles = circleSwoop.selectAll("circle.point").data(data, d => d.id)
+                                 .join(
+                                   enter => enter.append("circle").attr("class","point")
+                                                 .attr("fill", d => "#000")
+                                                 .attr("stroke", d => d3.hsl(d.colorValue).l > 0.8 ? "#aaa" : "none")
+                                                 .attr("cx", circleCenter.x-4 )
+                                                 .attr("cy", circleCenter.y-4 )
+                                                 .attr("r",8)
+                                                 .call( enter => enter.transition()
+                                                                      // Base delay on a variable 
+                                                                      // We do this because if new points get added, their index, i, can be very high and we don't want to wait i*60ms for it to show up
+                                                                      .delay( (d,i) => {currentSwoopDelay += delaySpacing; 
+                                                                                        return currentSwoopDelay})
+                                                                      // To avoid the center circles from looking weird, we use travel speed
+                                                                      .duration(d => constantSpeedDuration(d3.hsl(d.colorValue)) )
+                                                                      .ease(d3.easeExpOut)
+                                                                      .attr("fill", d => d.colorValue)
+                                                                      .attr("cx", d => xPos( d3.hsl(d.colorValue)))
+                                                                      .attr("cy", d => yPos( d3.hsl(d.colorValue)))
+                                                                      // At start of animation, we track number of currently moving circles
+                                                                      // We also make the row of data appear in the chart
+                                                                      .on("start", (d, i, nodes) => {
+                                                                        activeSwoopTransitions++;
+                                                                        d3.selectAll("#plot-swoop-table tr.row")
+                                                                                  .filter( cd => d.id === cd.id )
+                                                                                  .style("display","table-row")
+                                                                      })
+                                                                      // Whenever an animation ends, we decrement transitions and check to see if this is the final circle that's animating. If so, we animate the middle to "close" it
+                                                                      .on("end", (d, i, nodes) => {
+                                                                        currentSwoopDelay -= delaySpacing;
+                                                                        --activeSwoopTransitions;
+                                                                        if (activeSwoopTransitions === 0) {
+                                                                          console.log("no more animations, closing circle");
+                                                                          circleSwoopCenter.transition()
+                                                                                           .duration(500)
+                                                                                           .attr("r", 0)
+                                                                          console.log("done closing circle");
+                                                                        }
+                                                                      })
+                                                        )
+                                                 ,
+                                   update => update  // but... here is how you'd limit the update to ONLY nodes that ARE NOT animating
+                                                     .filter( function() { return d3.active(this) !== null } )
+                                                   .attr("cx", d => xPos( d3.hsl(d.colorValue)) )
+                                                   .attr("cy", d => yPos( d3.hsl(d.colorValue)) )
+                                                   .attr("fill", d => d.colorValue)
+                                                   ,
+                                   exit => exit.remove()
+                                 )
+      
+      
+    
+    
+      
+    }  
+    
+    const updateSwoopTable = async (data, hideRows) => {
+      
+      // First make table rows for each point using a data join 
+      var tableRows = d3.select("table#plot-swoop-table").selectAll("tr.row").data( data, d => d.id )
+                        .join( enter => { 
+                          // In the enter part, we add a <tr> and then three <td>
+                          let newRows = enter.append("tr").attr("class","row")
+                          .style("display", hideRows ? "none" : "table-row" )
+                          
+                          newRows.append("td").text( d => d.colorName );
+                          newRows.append("td").text("\u2588").style("color", d => d.colorValue )
+                          newRows.append("td").text( d => d.colorValue );
+                          
+                          // Configure group mouseovers using .filter
+                          newRows.on("mouseover", function(event, d) {
+                            circleSwoop.selectAll("circle.point").filter( cd => cd.colorName === d.colorName )
+                                       .classed("highlighted", true)
+                                       .raise();
+                            d3.select("table#plot-swoop-table").selectAll("tr.row").filter( cd => cd.colorName === d.colorName )
+                                   .classed("highlighted", true);
+                          })
+                          newRows.on("mouseout", function(event, d) {
+                            circleSwoop.selectAll("circle.point") //.filter( cd => cd.colorName === d.colorName )
+                                       .classed("highlighted", false);
+                            d3.select("table#plot-swoop-table").selectAll("tr.row")
+                                   .classed("highlighted", false);
+                          })
+                          
+                          
+                          
+                        },
+                        update => {
+                          // For each preexisting <tr>, clear out any <td> that exist there already just to make life easier
+                          // Then repopulate them all over again
+                          update.selectAll("td").remove()
+                                             
+                          update.append("td").text( d => d.colorName );
+                          update.append("td").text("\u2588").style("color", d => d.colorValue )
+                          update.append("td").text( d => d.colorValue );
+                          
+                        })
+    }
+    
+    
+    // Adding await here because the first updateData call may take a while due to Heroku
+    // Waiting for the first one guarantees that you don't get clashing updates once the timer starts
+    let main = async function() {
+      await updateData();
+      console.log("starting auto-updates");
+      
+      // Toggle this to turn on auto-updates
+      d3.interval( updateData, 10000 );
+    }
+    main();
+    
+    
+    
+    
+    </script>
+    
+    
+    
+    
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>
