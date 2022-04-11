@@ -86,7 +86,7 @@
     var getTextBBox = (label, fontSize, xPad, yPad) => {
       virtualText.style("font-size", `${fontSize}px`).text(label);
       let width  = virtualText.node().getComputedTextLength() + 2*xPad;
-      let height = 20 + 2*yPad; // in future, don't hardcode this!
+      let height = fontSize + 2*yPad;
       // round bigger even number
       width = Math.ceil(width) + Math.ceil(width)%2;
       height = Math.ceil(height) + Math.ceil(height)%2;
@@ -156,16 +156,38 @@
     }
     
     // modifying https://github.com/d3/d3-force/blob/main/src/collide.js
-    function forceCollideCircle() {
+    function forceCollideRectangle() {
       
       var nodes,
-          radii,
           random,
           strength = 1,
-          iterations = 1;
+          iterations = 1,
+          size = constant( [10,10] ); // getter function for size
+          sizes;  // list of stored sizes
 
       function force() {
+        // look at all the nodes, if they overlap, adjust vx and vy to push them away a bit
+        //  for each iteration, do stuff
+        //    for each of the nodes N
+        //      for each of the nodes that could plausibly overlap N
+        //        check whether it overlaps
         
+        var i, n = nodes.length;
+        var tree, // quadtree
+            node, // node under consideration during loop
+            xi,   // x center for node
+            yi,   // y center for node
+            si;   // size for node
+            
+        for (var k = 0; k < iterations; ++k) {
+          
+          // Quad tree data structure to do the "plausibly overlap" stuff
+          //  see: https://jimkang.com/quadtreevis/
+          tree = d3.quadtree(nodes, d => d.x + d.vx, d => d.y + d.vy );
+          
+          
+          
+        }
         
 
         function apply(quad, x0, y0, x1, y1) {
@@ -173,13 +195,21 @@
         }
       }
 
+      
       function initialize() {
-          if (!nodes) return;
-          var i, n = nodes.length, node;
-          radii = new Array(n);
-          for (i = 0; i < n; ++i) node = nodes[i], radii[node.index] = +radius(node, i, nodes);
+        // runs through the nodes, creates a sizes array by running the size() function
+        
+        // NOTE: We make use of configurable size constant / function
+        if (!nodes) return;
+        var i, n = nodes.length, node;
+        sizes = new Array();
+        for (i = 0; i < n; ++i) {
+          node = nodes[i]
+          sizes[node.index] = size(node, i, nodes);
+        }
       }
 
+      // Called by the simulation to provide the force with nodes
       force.initialize = function(_nodes, _random) {
         nodes = _nodes;
         random = _random;
@@ -194,8 +224,8 @@
         return arguments.length ? (strength = +_, force) : strength;
       };
 
-      force.radius = function(_) {
-        return arguments.length ? (radius = typeof _ === "function" ? _ : constant(+_), initialize(), force) : radius;
+      force.size = function(_) {  
+        return arguments.length ? (size = typeof _ === "function" ? _ : constant(+_), initialize(), force) : size;
       };
 
       return force;
@@ -245,21 +275,58 @@
          enter => enter.append("line")
                        .attr("class","link")
                        .attr("stroke","#333")
+                       .attr("marker-end", "url(#arrow)")
        )
-       .attr("x1", d => d.source.x).attr("x2", d => d.target.x)
-       .attr("y1", d => d.source.y).attr("y2", d => d.target.y);
+       // .attr("x1", d => d.source.x).attr("x2", d => d.target.x)
+       // .attr("y1", d => d.source.y).attr("y2", d => d.target.y);
        
-       let circles = layer.selectAll("circle.node").data(nodes)
-              .join(
-                 enter => enter.append("circle")
-                               .attr("class","node")
-                               .attr("stroke", "#333")
-                               .attr("r", 8)
-                               .attr("cx", 0)
-                               .attr("cy", 0)
-                               .attr("fill", "steelblue")
-                               .attr("opacity", 0.6)   )
-              .attr("transform", d => `translate(${d.x},${d.y})`);
+       // Instead, compute the intersection of the line segment with the box outline
+       // Use those so the line starts and ends on the box and not at the center
+       lines.each( function(d) {
+         let line = d3.select(this);
+         let intersect = getIntersections(d.source, d.target);
+         line.attr("x1", d => intersect[0][0]).attr("x2", d => intersect[1][0])
+             .attr("y1", d => intersect[0][1]).attr("y2", d => intersect[1][1]);
+       } );
+       
+       // let circles = layer.selectAll("circle.node").data(nodes)
+       //        .join(
+       //           enter => enter.append("circle")
+       //                         .attr("class","node")
+       //                         .attr("stroke", "#333")
+       //                         .attr("r", 8)
+       //                         .attr("cx", 0)
+       //                         .attr("cy", 0)
+       //                         .attr("fill", "steelblue")
+       //                         .attr("opacity", 0.6)   )
+       //        .attr("transform", d => `translate(${d.x},${d.y})`);
+       
+       //  g ==> rect, text
+       let labels = layer.selectAll("g.node").data(nodes)
+                         .join( enter => {
+                           gTags = enter.append("g")
+                                        .attr("class", "node");
+                           gTags.append("rect")
+                                .attr("x", d => -d.bbox[0]/2.0 )
+                                .attr("y", d => -d.bbox[1]/2.0 )
+                                .attr("width", d => d.bbox[0] )
+                                .attr("height", d => d.bbox[1] )
+                                .attr("fill", "white")
+                                .attr("stroke", "black")
+                                .attr("opacity", 0.5);
+                           gTags.append("text")
+                                .attr("class", d => d.type )
+                                .attr("x", 0)
+                                .attr("y", 0)
+                                .style("font-size", d => `${Math.floor(fontScale(d.count))}px`)
+                                .text( d => d.name );
+                                
+                           return gTags;
+                         })
+                         .attr("transform", d => `translate(${d.x},${d.y})`);
+       
+       
+       
       }
       // end render          
       
@@ -272,8 +339,8 @@
                                     .links(edges) 
                                     .id( d => d['id'] ) )
                   .force("repulse", d3.forceManyBody().strength(-5) ) 
-                  .force("center", d3.forceCenter(width/2.0, height/2.0))
-                  .force("collide", d3.forceCollide().radius( 10 ))
+                  .force("center", d3.forceCenter( width/2.0, height/2.0 ))
+                  .force("collide", d3.forceCollide().radius( d => d.hull[0]/2.0 ))
                   .on("tick", render);
     }
     
