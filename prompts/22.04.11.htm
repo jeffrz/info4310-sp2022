@@ -1,0 +1,319 @@
+<html>
+<head>
+  <title>INFO 4310 - April-1</title>
+  <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <link rel="stylesheet" href="../css/hljs-base16.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+  
+    svg text {
+      font-family: 'Lato', Helvetica, sans-serif;
+      font-size: 20px;
+      font-weight: bold;
+      text-anchor: middle;
+      alignment-baseline: middle;
+    }
+    
+    text.A {
+      fill: #263075;
+    }
+    text.B {
+      fill: #336e9e;
+    }
+  
+  </style>
+  
+</head>
+<body>
+  <div class="container larger">
+    <h3>Notes for April 11</h3>
+    <p>
+      Today we will attempt to construct some node-link diagrams of textual relationships inspired by <a href="https://ieeexplore.ieee.org/abstract/document/5290726?casa_token=L18AHuS04IMAAAAA:NBCWE3GMBwZipMTKnGVM7vM5utWUbP_ou9tE3YoxLl-rppTHT53WtU0YMUk4u6xPjLbEm8bCjQ">this paper</a> and using <a href="https://www.gutenberg.org/ebooks/1342">Pride and Prejudice</a> by Jane Austen as source text. While there are some clever techniques for identifying textual relationships using word embeddings, we are keeping it very simple. Simple dataset generation scripts are included in the repository.
+    </p>
+    <p>
+      As we work through a force-directed model, we quickly run into cases where it does not have necessary features. One of the best strategies for customizing your visualizations is to use the original d3 source as a model. Course materials today make use of the <a href="https://github.com/d3/d3-force/tree/main/src">d3-force</a> source as well as an example model from <a href="https://lvngd.com/blog/rectangular-collision-detection-d3-force-layouts/">Christina Levengood</a>.
+    </p>
+    <h5>HTML for today:</h5>
+    
+    <h5>A (is) at\in (the) B</h5>
+    <svg id="plot-at" width="800" height="800" style="margin-bottom:20px; border: 1px solid black;" >
+      <defs>
+        <marker id="arrow" viewBox="0,0,10,10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+          <path d="M0,0L0,10L10,5" fill="grey"></path>
+        </marker>
+      </defs>
+    </svg>
+    
+    <h5>A's B</h5>
+    <svg id="plot-gen" width="800" height="800" style="margin-bottom:20px; border: 1px solid black;" >
+      <defs>
+        <marker id="arrow" viewBox="0,0,10,10" refX="5" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+          <path d="M0,0L0,10L10,5" fill="grey"></path>
+        </marker>
+      </defs>
+    </svg>
+    
+  
+    <h5>Code for today:</h5>
+    <pre>
+      <code id="display2" class="hljs javascript">
+      </code>
+    </pre>
+    <pre>
+      <code id="display1" class="hljs javascript">
+      </code>
+    </pre>
+    
+    <script id="notes1">
+    
+    // ----------- Helper functions ---------------
+    
+    
+    // ---- Get bounding box for text element
+    // Make a hidden SVG to use for measuring text element sizes
+    var virtualText = d3.select("body").append("svg").attr("width",0).attr("height",0)
+                        .append("text");
+                        
+    // Given a label, give a bounding box with padding for that text in the SVG
+    var getTextBBox = (label, fontSize, xPad, yPad) => {
+      virtualText.style("font-size", `${fontSize}px`).text(label);
+      let width  = virtualText.node().getComputedTextLength() + 2*xPad;
+      let height = 20 + 2*yPad; // in future, don't hardcode this!
+      // round bigger even number
+      width = Math.ceil(width) + Math.ceil(width)%2;
+      height = Math.ceil(height) + Math.ceil(height)%2;
+      return [width, height]; // Another place where we swap X and Y
+    };
+    
+    
+    // ---- Find intersection points for line connecting centers of one bounding box to another
+    //  (depends on source and target having x, y, and bbox properties)
+    var getIntersections = (source, target) => {
+      
+      // Create bounding boxes
+      let sourceBBox = {left: source.x - source.bbox[0]/2.0, right: source.x + source.bbox[0]/2.0, top: source.y - source.bbox[1]/2.0, bottom: source.y + source.bbox[1]/2.0}
+      let targetBBox = {left: target.x - target.bbox[0]/2.0, right: target.x + target.bbox[0]/2.0, top: target.y - target.bbox[1]/2.0, bottom: target.y + target.bbox[1]/2.0}
+      
+      // Check for same points
+      if (source.x === target.x && source.y === target.y) {
+        return [[source.x, source.y], [target.x, target.y]];
+      }
+      // Check for intersecting rectangles. If so, just return a plain line
+      else if (sourceBBox.left < targetBBox.right && sourceBBox.right > targetBBox.left &&
+          sourceBBox.top > targetBBox.bottom && sourceBBox.bottom < targetBBox.top ) {
+        return [[source.x, source.y], [target.x, target.y]];
+      }
+      // Otherwise, find the intersection points using a short version of Liang-Barsky
+      //  https://en.wikipedia.org/wiki/Liang%E2%80%93Barsky_algorithm
+      //   (shortened by assuming that only outside-inside intersection exists)
+      else {
+        // Make an intersection function just to save space, shouldn't be too inefficient
+        let intersect = (source, target, bbox) => {
+          let lineSource = [source.x, source.y];
+          let lineTarget = [target.x, target.y];
+          let lineDelta = [target.x - source.x, target.y - source.y];
+          
+          let p = [-lineDelta[0], lineDelta[0], 
+                   -lineDelta[1], lineDelta[1]];
+          let q = [lineSource[0] - bbox.left, bbox.right - lineSource[0], 
+                   lineSource[1] - bbox.top, bbox.bottom - lineSource[1]];
+          let t1 = Number.NEGATIVE_INFINITY;
+          let t2 = Number.POSITIVE_INFINITY;
+          
+          for (let i=0; i<4; i++) {
+            let t = q[i] / p[i];
+            if (p[i] < 0 && t1 < t) { t1 = t }
+            else if (p[i] > 0 && t2 > t) { t2 = t }
+          }
+          
+          return [lineSource[0] + t1*lineDelta[0], lineSource[1] + t1*lineDelta[1]];
+        }
+        // Cast lines in different directions to find intersection points
+        return [intersect(target, source, sourceBBox), intersect(source, target, targetBBox)];
+      }
+    }
+    
+    
+    
+    
+    // ------------ We'll use this section later to make a better layout
+    // Using the forceCollide as a base, we can adapt it to collide with rectangular hulls
+    
+    // built-in d3 functions referenced from forceCollide
+    function constant(_) {
+        return function () { return _ }
+    }
+    function jiggle(random) {
+      return (random() - 0.5) * 1e-6;
+    }
+    
+    // modifying https://github.com/d3/d3-force/blob/main/src/collide.js
+    function forceCollideCircle() {
+      
+      var nodes,
+          radii,
+          random,
+          strength = 1,
+          iterations = 1;
+
+      function force() {
+        
+        
+
+        function apply(quad, x0, y0, x1, y1) {
+        
+        }
+      }
+
+      function initialize() {
+          if (!nodes) return;
+          var i, n = nodes.length, node;
+          radii = new Array(n);
+          for (i = 0; i < n; ++i) node = nodes[i], radii[node.index] = +radius(node, i, nodes);
+      }
+
+      force.initialize = function(_nodes, _random) {
+        nodes = _nodes;
+        random = _random;
+        initialize();
+      };
+
+      force.iterations = function(_) {
+        return arguments.length ? (iterations = +_, force) : iterations;
+      };
+
+      force.strength = function(_) {
+        return arguments.length ? (strength = +_, force) : strength;
+      };
+
+      force.radius = function(_) {
+        return arguments.length ? (radius = typeof _ === "function" ? _ : constant(+_), initialize(), force) : radius;
+      };
+
+      return force;
+    }
+    
+    </script>
+    
+    
+    <script id="notes2">
+    
+    
+    async function populateChart( dataset, canvas ) {
+      
+      let layer = canvas.append("g");
+      let width = canvas.attr("width");
+      let height = canvas.attr("height");
+      
+      // Add pan/zoom
+      canvas.append("rect").attr("x",0).attr("y",0)
+                           .attr("width",width).attr("height",height)
+                           .attr("fill","none")
+                           .style("pointer-events","all")
+                           .call(d3.zoom().on("zoom", 
+                               function({transform}) { layer.attr("transform",transform) })
+                              );
+      
+      let nodes = dataset.nodes;
+      let edges = dataset.edges;
+      
+      // get font size scale, just in case
+      let fontScale = d3.scaleLinear().domain(d3.extent(nodes, d => d.count)).range([16,28]);
+      
+      // modify the dataset with dimensions for each node
+      nodes.forEach( d => {
+        d.bbox = getTextBBox(d.name, Math.floor(fontScale(d.count)), 5, 5);
+        d.hull = getTextBBox(d.name, Math.floor(fontScale(d.count)), 20, 20);
+        
+        d.x = Math.random() * width;
+        d.y = Math.random() * height;
+      });
+      
+      // render 
+      let render = () => {
+
+      let lines = layer.selectAll("line.link").data(edges)
+       .join(
+         enter => enter.append("line")
+                       .attr("class","link")
+                       .attr("stroke","#333")
+       )
+       .attr("x1", d => d.source.x).attr("x2", d => d.target.x)
+       .attr("y1", d => d.source.y).attr("y2", d => d.target.y);
+       
+       let circles = layer.selectAll("circle.node").data(nodes)
+              .join(
+                 enter => enter.append("circle")
+                               .attr("class","node")
+                               .attr("stroke", "#333")
+                               .attr("r", 8)
+                               .attr("cx", 0)
+                               .attr("cy", 0)
+                               .attr("fill", "steelblue")
+                               .attr("opacity", 0.6)   )
+              .attr("transform", d => `translate(${d.x},${d.y})`);
+      }
+      // end render          
+      
+      
+      // Build a simulation for the graph
+      var sim = d3.forceSimulation()
+                  .alphaDecay( 1 - Math.pow(0.001, 1 / 300) )
+                  .nodes(nodes)
+                  .force("links", d3.forceLink()   
+                                    .links(edges) 
+                                    .id( d => d['id'] ) )
+                  .force("repulse", d3.forceManyBody().strength(-5) ) 
+                  .force("center", d3.forceCenter(width/2.0, height/2.0))
+                  .force("collide", d3.forceCollide().radius( 10 ))
+                  .on("tick", render);
+    }
+    
+    
+    
+    
+    const requestData = async () => {
+
+      const atRelationships = await d3.json("../datasets/pnp_at_relationships.json");
+      console.log(atRelationships);
+      populateChart( atRelationships, d3.select("#plot-at") );
+      
+      // const genRelationships = await d3.json("../datasets/pnp_genitive_relationships.json");
+      // console.log(genRelationships);
+      // populateChart( genRelationships, d3.select("#plot-gen") );
+    
+    }
+    requestData();
+    
+    </script>
+    
+    
+    
+    
+    <!--- calls the highlight library to fill the <pre> tag with code --->
+    <script>
+    
+    function sanitize(s) {
+      return s.replace("<br>", "\\n")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            }
+      document.getElementById("display1").innerHTML = sanitize( document.getElementById("notes1").innerText);
+      document.getElementById("display2").innerHTML = sanitize( document.getElementById("notes2").innerText);
+      hljs.highlightAll();
+    </script>    
+    
+  </div>
+</body>
+</html>
