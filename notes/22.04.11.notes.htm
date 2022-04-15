@@ -156,21 +156,16 @@
     }
     
     // modifying https://github.com/d3/d3-force/blob/main/src/collide.js
-    function forceCollideRectangle() {
+    function forceCollideRect() {
       
       var nodes,
           random,
+          size = constant( [10,10] ),
+          sizes,
           strength = 1,
-          iterations = 1,
-          size = constant( [10,10] ); // getter function for size
-          sizes;  // list of stored sizes
+          iterations = 1;
 
       function force() {
-        // look at all the nodes, if they overlap, adjust vx and vy to push them away a bit
-        //  for each iteration, do stuff
-        //    for each of the nodes N
-        //      for each of the nodes that could plausibly overlap N
-        //        check whether it overlaps
         
         var i, n = nodes.length;
         var tree, // quadtree
@@ -178,26 +173,70 @@
             xi,   // x center for node
             yi,   // y center for node
             si;   // size for node
-            
+        
+        // Iterate collision solver
         for (var k = 0; k < iterations; ++k) {
-          
-          // Quad tree data structure to do the "plausibly overlap" stuff
-          //  see: https://jimkang.com/quadtreevis/
-          tree = d3.quadtree(nodes, d => d.x + d.vx, d => d.y + d.vy );
-          
-          
-          
+          // Put nodes into quadtree, then iterate through them
+          tree = d3.quadtree(nodes, d => d.x + d.vx, d => d.y + d.vy);
+          for (var i = 0; i < n; ++i) {
+            node = nodes[i];
+            xi = node.x + node.vx;
+            yi = node.y + node.vy;
+            si = sizes[i];
+            tree.visit(apply);
+          }
         }
         
-
         function apply(quad, x0, y0, x1, y1) {
-        
+            var data = quad.data;
+            // If data exists, then we are at a leaf node and not a quad rectangle
+            if(data){
+              if (data.index > node.index) { // If the index is greater, we've already compared them
+                                             //  in an earlier loop which already called apply
+                let xd = data.x + data.vx;
+                let yd = data.y + data.vy;
+                let sd = sizes[data.index];                             
+                let xHalfDist = (si[0] + sd[0]) / 2.0;
+                let yHalfDist = (si[1] + sd[1]) / 2.0;
+                let dX = xi - xd;
+                let dY = yi - yd;
+                let distX = Math.abs(dX);
+                let distY = Math.abs(dY);
+                
+                // Check for collision by comparing half distances
+                //  Intuition: If centers are less than the size of each box divided by 2, then they
+                //   must be overlapping on that dimension. Both must overlap to have a true collision.
+                if (distX <= xHalfDist && distY <= yHalfDist) {
+                  
+                  if (distX === 0) { distX = jiggle(random); }
+                  if (distY === 0) { distY = jiggle(random); }
+                
+                  // Now resolve the collision down to a vector to nudge the boxes away
+                  let dist = Math.sqrt(dX*dX + dY*dY);
+                  let collisionVec = [dX / dist, dY / dist];
+                  
+                  let impulse = strength;  // You could take into account size of boxes to make
+                                           //  a more accurate impulse based on masses
+                  node.vx += (impulse * collisionVec[0]);
+                  node.vy += (impulse * collisionVec[1]);
+                  data.vx -= (impulse * collisionVec[0]);
+                  data.vy -= (impulse * collisionVec[1]);
+                }
+              }
+              return; // finished traversing this branch
+            }
+          // If data is not defined, then we need to return true or false to continue traversal
+          // True stops the traversal, False continues it
+          // The intuition here is that we can examine x0, y0, x1, y1 to see whether a collision
+          //  is even possible. If x0 is past the right side of the box, then it can't possible touch.
+          //  Since child nodes are guaranteed to be inside x0,y0,x1,y1, we can skip traversing this
+          //  branch and move on to another one instead. This is the efficiency gain from quadtrees.
+          return x0 > xi + si[0]/2.0 || x1 < xi - si[0]/2.0 || y0 > yi + si[1]/2.0 || y1 < yi - si[1]/2.0;
+          //      Right || Left || Bottom || Top
         }
       }
-
       
       function initialize() {
-        // runs through the nodes, creates a sizes array by running the size() function
         
         // NOTE: We make use of configurable size constant / function
         if (!nodes) return;
@@ -207,6 +246,7 @@
           node = nodes[i]
           sizes[node.index] = size(node, i, nodes);
         }
+        
       }
 
       // Called by the simulation to provide the force with nodes
@@ -224,8 +264,9 @@
         return arguments.length ? (strength = +_, force) : strength;
       };
 
-      force.size = function(_) {  
-        return arguments.length ? (size = typeof _ === "function" ? _ : constant(+_), initialize(), force) : size;
+      // Expect a function that takes in d and returns [width, height] of the node
+      force.size = function(_) {
+        return arguments.length ? (size = typeof _ === "function" ? _ : constant(_), initialize(), force) : size;
       };
 
       return force;
@@ -338,9 +379,12 @@
                   .force("links", d3.forceLink()   
                                     .links(edges) 
                                     .id( d => d['id'] ) )
-                  .force("repulse", d3.forceManyBody().strength(-5) ) 
+                  .force("repulse", d3.forceManyBody().strength(-1) ) 
                   .force("center", d3.forceCenter( width/2.0, height/2.0 ))
-                  .force("collide", d3.forceCollide().radius( d => d.hull[0]/2.0 ))
+                  //.force("collide", d3.forceCollide().radius( d => d.hull[0]/2.0 ))
+                  .force("collide", forceCollideRect().size( d => d.hull )
+                                                      .iterations(2)
+                                                      .strength(5))
                   .on("tick", render);
     }
     
