@@ -147,15 +147,14 @@
     // ------------ We'll use this section later to make a better layout
     // Using the forceCollide as a base, we can adapt it to collide with rectangular hulls
     
-    // built-in d3 functions referenced from forceCollide
+    // built-in d3 functions
     function constant(_) {
         return function () { return _ }
     }
     function jiggle(random) {
       return (random() - 0.5) * 1e-6;
     }
-    
-    // modifying https://github.com/d3/d3-force/blob/main/src/collide.js
+
     function forceCollideRect() {
       
       var nodes,
@@ -272,6 +271,15 @@
       return force;
     }
     
+    
+    
+    
+    
+    
+    
+    
+    
+    
     </script>
     
     
@@ -308,84 +316,99 @@
         d.y = Math.random() * height;
       });
       
-      // render 
+      
       let render = () => {
 
-      let lines = layer.selectAll("line.link").data(edges)
-       .join(
-         enter => enter.append("line")
-                       .attr("class","link")
-                       .attr("stroke","#333")
-                       .attr("marker-end", "url(#arrow)")
-       )
-       // .attr("x1", d => d.source.x).attr("x2", d => d.target.x)
-       // .attr("y1", d => d.source.y).attr("y2", d => d.target.y);
-       
-       // Instead, compute the intersection of the line segment with the box outline
-       // Use those so the line starts and ends on the box and not at the center
-       lines.each( function(d) {
-         let line = d3.select(this);
-         let intersect = getIntersections(d.source, d.target);
-         line.attr("x1", d => intersect[0][0]).attr("x2", d => intersect[1][0])
-             .attr("y1", d => intersect[0][1]).attr("y2", d => intersect[1][1]);
-       } );
-       
-       // let circles = layer.selectAll("circle.node").data(nodes)
-       //        .join(
-       //           enter => enter.append("circle")
-       //                         .attr("class","node")
-       //                         .attr("stroke", "#333")
-       //                         .attr("r", 8)
-       //                         .attr("cx", 0)
-       //                         .attr("cy", 0)
-       //                         .attr("fill", "steelblue")
-       //                         .attr("opacity", 0.6)   )
-       //        .attr("transform", d => `translate(${d.x},${d.y})`);
-       
-       //  g ==> rect, text
-       let labels = layer.selectAll("g.node").data(nodes)
-                         .join( enter => {
-                           gTags = enter.append("g")
-                                        .attr("class", "node");
-                           gTags.append("rect")
-                                .attr("x", d => -d.bbox[0]/2.0 )
-                                .attr("y", d => -d.bbox[1]/2.0 )
-                                .attr("width", d => d.bbox[0] )
-                                .attr("height", d => d.bbox[1] )
-                                .attr("fill", "white")
-                                .attr("stroke", "black")
-                                .attr("opacity", 0.5);
-                           gTags.append("text")
-                                .attr("class", d => d.type )
-                                .attr("x", 0)
-                                .attr("y", 0)
-                                .style("font-size", d => `${Math.floor(fontScale(d.count))}px`)
-                                .text( d => d.name );
+        let lines = layer.selectAll("line.link").data(edges)
+         .join(
+           enter => enter.append("line")
+                         .attr("class","link")
+                         .attr("stroke","#333") 
+                         .style("marker-end", "url(#arrow)")
+         )
+         // .attr("x1", d => d.source.x).attr("x2", d => d.target.x)
+         // .attr("y1", d => d.source.y).attr("y2", d => d.target.y);
+         
+         // Instead, compute the intersection of the line segment with the box outline
+         // Use those so the line starts and ends on the box and not at the center
+         lines.each( function(d) {
+           let line = d3.select(this);
+           let intersect = getIntersections(d.source, d.target);
+           line.attr("x1", d => intersect[0][0]).attr("x2", d => intersect[1][0])
+               .attr("y1", d => intersect[0][1]).attr("y2", d => intersect[1][1]);
+         } );
+        
+         // Circles were hard to interpret
+         // let circles = layer.selectAll("circle.node").data(nodes)
+         //        .join(
+         //           enter => enter.append("circle")
+         //                         .attr("class","node")
+         //                         .attr("stroke", "#333")
+         //                         .attr("r", 8)
+         //                         .attr("cx", 0)
+         //                         .attr("cy", 0)
+         //                         .attr("fill", "steelblue")       )
+         //        .attr("transform", d => `translate(${d.x},${d.y})`);
+        
+        // Make some text labels instead
+        let labels = layer.selectAll("g.node").data(nodes)
+            .join(
+               enter => { gTags = enter.append("g")
+                                       .attr("class","node");
+                          
+                          // Background rectangle             
+                          gTags.append("rect")
+                               .attr("x", d => -d.bbox[0]/2.0)
+                               .attr("y", d => -d.bbox[1]/2.0)
+                               .attr("width", d => d.bbox[0] )
+                               .attr("height", d => d.bbox[1] )
+                               .attr("fill", "white")
+                               .attr("stroke", "black")
+                               .attr("opacity", 0.5);
                                 
-                           return gTags;
-                         })
-                         .attr("transform", d => `translate(${d.x},${d.y})`);
-       
-       
-       
-      }
-      // end render          
+                          // Text label   
+                          gTags.append("text")
+                               .attr("class", d => d.type )
+                               .attr("x",0)
+                               .attr("y",0)
+                               .style("font-size", d => `${Math.floor(fontScale(d.count))}px`)
+                               .text( d => d.name );
+                          
+                          // Don't forget to return the added items   
+                          return gTags;
+                        }
+                             
+             )
+            .attr("transform", d => `translate(${d.x},${d.y})`);
+      }   
       
       
       // Build a simulation for the graph
       var sim = d3.forceSimulation()
-                  .alphaDecay( 1 - Math.pow(0.001, 1 / 300) )
+                  .alphaDecay( 1 - Math.pow(0.001, 1 / 400) )
                   .nodes(nodes)
                   .force("links", d3.forceLink()   
                                     .links(edges) 
+                                    //.distance(50) // distance can also help, but it's not perfect
                                     .id( d => d['id'] ) )
                   .force("repulse", d3.forceManyBody().strength(-1) ) 
-                  .force("center", d3.forceCenter( width/2.0, height/2.0 ))
-                  //.force("collide", d3.forceCollide().radius( d => d.hull[0]/2.0 ))
+                  .force("center", d3.forceCenter(width/2.0, height/2.0))
+                  // .force("collide", d3.forceCollide().radius( d => d.hull[0]/2.0 )) // This works okay... 
                   .force("collide", forceCollideRect().size( d => d.hull )
                                                       .iterations(2)
-                                                      .strength(5))
-                  .on("tick", render);
+                                                      .strength(5) )
+                  .on("tick", render)
+                  .stop();            //ADDED AFTER CLASS
+    
+      // ADDED AFTER CLASS - automatically settle the chart into final layout
+      while (sim.alpha() > 0.001) { 
+        sim.tick(); 
+      }
+      render();
+                  
+    
+                 
+      
     }
     
     
@@ -397,9 +420,9 @@
       console.log(atRelationships);
       populateChart( atRelationships, d3.select("#plot-at") );
       
-      // const genRelationships = await d3.json("../datasets/pnp_genitive_relationships.json");
-      // console.log(genRelationships);
-      // populateChart( genRelationships, d3.select("#plot-gen") );
+      const genRelationships = await d3.json("../datasets/pnp_genitive_relationships.json");
+      console.log(genRelationships);
+      populateChart( genRelationships, d3.select("#plot-gen") );
     
     }
     requestData();
