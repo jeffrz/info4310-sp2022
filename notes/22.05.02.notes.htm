@@ -143,8 +143,81 @@
                              .attr("cx", d => dateScale(d['date']) )
                              .attr("cy", d => carbonScale(d['Carbon Dioxide (ppm)']) );
 
-
+                             
       // Set up tone.js for sound
+      // It largely works like any other audio mixing platform, in that there are sound sources (Instruments in tone.js), filters and processors that change the sound, and an output pipe (Destination) where sound is saved or played.
+      // Here we will create some synthesizers that make simple sound waves, pipe them into a volume reducer, then pipe the output of that into the Destination for playback
+
+      // First, make some scales for frequency (pitch) based on data values on y axis
+      // The range numbers seem odd, but they correspond to specific pitches on the music scale
+      // We began with a linear scale, but because pitches are logarithmic, using scalePow produces better results
+      // const frequencyScale = d3.scaleLinear().domain(carbonExtent).range([130.81, 523.25]); // C3, C5
+      // NOTE: This is throwing out a whole portion of music theory related to scales and intonation 
+      const frequencyScale = d3.scalePow().exponent(2).domain(carbonExtent).range([130.81, 523.25]); // C3, C5
+
+      // Volume filter which pipes to speaker
+      const volume = new Tone.Volume(-20).toDestination();
+
+      // First, a default synthesizer connected to volume
+      // const synth = new Tone.Synth().connect(volume);
+
+      // Next, a PolySynth which can play multiple tones at once - configured as a square wave oscillator for 8-bit nostalgia
+      const synth = new Tone.PolySynth(Tone.Synth, {
+                          oscillator: { type: "square" },   // try out 'triangle', 'square', and 'sine' among others
+                          envelope:{ attack: 0.05, release: 0.05 }
+                        }).connect(volume);
+
+      // How long to "stay" on each circle during animation
+      let highlightDuration = 60;
+      let button = d3.select("button#lineplay");
+      let playing = false;
+      button.on("click", async function() {
+       // If already playing, interrupt animation and stop playback
+       //   You probably should handle the exception in the "await" below better due to the .interrupt() 
+       if (playing) {
+         circles.interrupt(); // stop animation
+         circles.transition().duration(400).attr("fill","navy");
+         button.text("Play");
+         playing = false;
+         return;
+       }
+       
+       // Begin playback
+       playing = true;
+       button.text("Stop");
+       
+       // We use a d3 animation to play sound effects
+       // .delay queues up the circles in index order and the .on event triggers the sound
+       // Using tone.js's timer may be more reliable
+       await circles.transition()
+                    .delay( (d,i) => i * (highlightDuration + 5) )
+                    .duration( highlightDuration )
+                    .attr("fill", "red")
+                    .on("start", (d, i) => {
+                      
+                      // For each circle, when it starts turning red, play sound
+                      
+                      // get frequency
+                      // let freq = frequencyScale(d['Carbon Dioxide (ppm)']);
+                      
+                      // play plain sound
+                      // synth.triggerAttackRelease(freq, highlightDuration/1000);
+                      
+                      // play a chord
+                      synth.triggerAttackRelease([freq, freq*1.25, freq*1.5], highlightDuration/1000);
+                      
+                      // find the closest musical note and play a piano chord sample
+                      //let f = closestFrequency(freq)
+                      //instruments.piano.triggerAttackRelease([f, f*1.25, f*1.5], highlightDuration/1000);
+                      
+                    })
+                    .end(); // gives us a promise to use in await
+        
+        // reset stuff
+        circles.transition().duration(400).attr("fill","navy");
+        button.text("Play");
+        playing = false;
+      }); 
       
       
       
@@ -268,35 +341,60 @@
       // Volume for the y axis, frequency (and time) for the x axis, instrument for color
       const volumeScale = countScale.copy().range([-24,-12]);
       const freqScale = d3.scalePow().exponent(2).domain([0, chinstrapBins.length]).range([130.81, 523.25])
-      
+
       let highlightDuration = 500; // milliseconds
       let button = d3.select("button#barplay");
       let playing = false;
       button.on("click", async function() {
-        
-        // To disable the button until the sounds load, I use var LOADED from the last script tag
-        if (!LOADED) { console.log("not loaded"); return; }
-        
-        if (playing) {
-          svg.selectAll("rect").interrupt();
-          svg.selectAll("rect").transition()
-                 .duration( 400 )
-                 .attr("stroke","black");
-          playing = false;
-          button.text("Play");
-          return;
-        }
-    
-        playing = true;
-        button.text("Stop");
-        
-        
-        // Make the bars play music?
-        
-        
-        
-        
-        
+       
+       // To disable the button until the sounds load, I use var LOADED from the last script tag
+       if (!LOADED) { console.log("not loaded"); return; }
+       
+       if (playing) {
+         svg.selectAll("rect").interrupt();
+         svg.selectAll("rect").transition()
+                .duration( 400 )
+                .attr("stroke","black");
+         playing = false;
+         button.text("Play");
+         return;
+       }
+
+       playing = true;
+       button.text("Stop");
+       
+       // The intuition here is that we can iterate through all of the rectangles since we control when it plays using .delay
+       // By setting delay to be the rectangle's bin index (d.id), we can make sure all three play at once in a column
+       await svg.selectAll("rect")
+                    .transition()
+                    .delay( d => (d.id * (highlightDuration + 100) ) )
+                    .duration( highlightDuration )
+                    .attr("stroke","red").transition()
+                    .on("start", function(d, i) { 
+                      // play a sound, one for each penguin type
+                      if (d.length < 1) { return; } // if no penguins, no sounds
+                      
+                      let vol = volumeScale(d.length)
+                      let freq = closestFrequency( freqScale(d.id) )
+                      const now = Tone.now(); // we used this to add some delay as a third parameter
+                      
+                      // pick instrument and play sample
+                      if ( d3.select(this).classed("adelie") ) {
+                        instruments.pianoVolume.volume.value = vol;
+                        instruments.piano.triggerAttackRelease([freq, freq*1.25, freq*1.5], highlightDuration/1000, now);
+                      }
+                      else if ( d3.select(this).classed("gentoo") ) {
+                        instruments.harpVolume.volume.value = vol;
+                        instruments.harp.triggerAttackRelease([freq, freq*1.25, freq*1.5], highlightDuration/1000, now+0.05);
+                      }
+                      else if ( d3.select(this).classed("chinstrap") ) {
+                        instruments.organVolume.volume.value = vol;
+                        instruments.organ.triggerAttackRelease([freq, freq*1.25, freq*1.5], highlightDuration/1000, now+0.1);
+                      }
+                      
+                      
+                    })
+                    .end();
         
         
         
