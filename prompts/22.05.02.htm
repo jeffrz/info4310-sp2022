@@ -13,8 +13,13 @@
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js"></script>
   <style>
-  
-  
+    .gridlines line {
+      stroke: #bbb;
+    }
+
+    .gridlines .domain {
+      stroke: none;
+    }
   </style>
   
 </head>
@@ -189,7 +194,8 @@
       const xAttr = 'flipper_length_mm';
 
       const countScale = d3.scaleLinear().range([chartHeight, 0]);
-      const xExtent = d3.extent(penguinData, d => d[xAttr]);
+      //const xExtent = d3.extent(penguinData, d => d[xAttr]);
+      const xExtent = [170, 235]; // hard-coding this to make a more appealing chart
       const xScale = d3.scaleLinear().domain(xExtent).range([0,chartWidth]);
 
       let bin = d3.bin().domain(xScale.domain()).value( d => d[xAttr] ).thresholds(xScale.ticks());
